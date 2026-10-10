@@ -41,6 +41,13 @@ const formatDate = (date: string) =>
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(date));
+const formatDuration = (seconds: number | null | undefined) => {
+  if (seconds == null) return "Не записано";
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const rest = seconds % 60;
+  return `${hours ? `${hours} ч ` : ""}${minutes || hours ? `${minutes} мин ` : ""}${rest} сек`;
+};
 const testUrl = (token: string) =>
   `${location.origin}${location.pathname}#/test/${token}`;
 const errorText = (e: unknown) =>
@@ -477,6 +484,7 @@ function Teacher() {
                         <th>Ученик</th>
                         <th>Тест</th>
                         <th>Результат</th>
+                        <th>Время прохождения</th>
                         <th>Отправлено</th>
                         <th />
                       </tr>
@@ -504,6 +512,7 @@ function Teacher() {
                               {r.correct} из {r.total}
                             </small>
                           </td>
+                          <td>{formatDuration(r.durationSeconds)}</td>
                           <td>{formatDate(r.submittedAt)}</td>
                           <td>
                             <button
@@ -545,6 +554,9 @@ function Teacher() {
               {detail.correct} из {detail.total} · {detail.percentage}%
             </strong>
           </div>
+          <p className="muted">
+            Время прохождения: {formatDuration(detail.durationSeconds)}
+          </p>
           <Review exercises={detail.exercises} />
         </Modal>
       )}
@@ -1027,6 +1039,7 @@ function Student({ token }: { token: string }) {
                   {result.correct} из {result.total} упражнений выполнено верно
                 </p>
               </div>
+              <p>Время прохождения: {formatDuration(result.durationSeconds)}</p>
               <div className="result-saved">
                 <Check size={17} />
                 {mode === "demo"
@@ -1099,6 +1112,10 @@ function Student({ token }: { token: string }) {
                 <p className="helper">
                   Имя и ответы сохраняются и доступны вашему преподавателю.
                   Email и пароль не нужны.
+                </p>
+                <p className="helper">
+                  Время прохождения считается после нажатия «Начать практику» до
+                  отправки ответов, включая перерывы.
                 </p>
                 <ErrorBox message={error} />
                 {recoveryFailed && (

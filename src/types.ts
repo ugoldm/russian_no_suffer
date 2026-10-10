@@ -41,6 +41,7 @@ export interface Attempt {
   total: number;
   percentage: number;
   submittedAt: string;
+  durationSeconds: number | null;
   testTitle: string;
   exam: string;
   taskNumber: number;

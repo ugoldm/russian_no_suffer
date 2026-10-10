@@ -4,6 +4,66 @@ import { initialState } from "../server/demo-content.mjs";
 import { execute, grade, migrateState } from "../server/engine.mjs";
 const teacher = { id: "teacher", teacher: true },
   student = { id: "student", teacher: false };
+test("duration excludes name entry, survives recovery and is frozen on retry", (ctx) => {
+  ctx.mock.timers.enable({
+    apis: ["Date"],
+    now: Date.parse("2026-10-10T10:00:00Z"),
+  });
+  const s = initialState(),
+    token = s.tests[0].shareToken;
+  execute(s, "get_test", { token }, student);
+  ctx.mock.timers.tick(40000);
+  const p = execute(
+    s,
+    "start_attempt",
+    { token, name: "Ученик", startedAt: "2000-01-01" },
+    student,
+  );
+  ctx.mock.timers.tick(85000);
+  execute(s, "get_test", { token }, student);
+  assert.equal(
+    execute(s, "get_attempt", { attemptId: p.id }, student).id,
+    p.id,
+  );
+  ctx.mock.timers.tick(40000);
+  const result = execute(
+    s,
+    "submit_attempt",
+    {
+      attemptId: p.id,
+      answers: {},
+      durationSeconds: 1,
+      submittedAt: "2000-01-01",
+    },
+    student,
+  );
+  assert.equal(result.durationSeconds, 125);
+  ctx.mock.timers.tick(50000);
+  assert.deepEqual(
+    execute(s, "submit_attempt", { attemptId: p.id, answers: {} }, student),
+    result,
+  );
+  assert.equal(
+    execute(s, "teacher_overview", {}, teacher).results[0].durationSeconds,
+    125,
+  );
+  assert.equal(
+    execute(s, "teacher_result", { attemptId: p.id }, teacher).durationSeconds,
+    125,
+  );
+  const p2 = execute(s, "start_attempt", { token, name: "Ученик" }, student);
+  ctx.mock.timers.tick(2000);
+  assert.equal(
+    execute(s, "submit_attempt", { attemptId: p2.id, answers: {} }, student)
+      .durationSeconds,
+    2,
+  );
+  delete s.attempts[0].startedAt;
+  assert.equal(
+    execute(s, "get_attempt", { attemptId: p.id }, student).durationSeconds,
+    null,
+  );
+});
 function setup() {
   const s = initialState();
   const test = s.tests[0];

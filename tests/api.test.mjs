@@ -37,23 +37,46 @@ test("HTTP API persists records across restart and isolates student sessions", a
       (await call("other", "get_attempt", { attemptId: p.id })).status,
       404,
     );
+    const result = (
+      await call("student", "submit_attempt", {
+        attemptId: p.id,
+        answers: {},
+        durationSeconds: 999,
+      })
+    ).data;
+    assert.equal(result.percentage, 0);
     assert.equal(
-      (
-        await call("student", "submit_attempt", {
-          attemptId: p.id,
-          answers: {},
-        })
-      ).data.percentage,
-      0,
+      result.durationSeconds,
+      Math.floor(
+        (Date.parse(result.submittedAt) - Date.parse(result.startedAt)) / 1000,
+      ),
     );
     assert.equal(
       (await call("teacher", "teacher_overview")).data.results.length,
       1,
     );
+    assert.equal(
+      (await call("teacher", "teacher_result", { attemptId: p.id })).data
+        .durationSeconds,
+      result.durationSeconds,
+    );
+    assert.deepEqual(
+      (
+        await call("student", "submit_attempt", {
+          attemptId: p.id,
+          answers: {},
+        })
+      ).data,
+      result,
+    );
     await new Promise((r) => server.close(r));
     server = createApp({ databasePath: path });
     await new Promise((r) => server.listen(0, "127.0.0.1", r));
     url = `http://127.0.0.1:${server.address().port}/api/rpc`;
+    assert.deepEqual(
+      (await call("student", "get_attempt", { attemptId: p.id })).data,
+      result,
+    );
     assert.equal(
       (await call("teacher", "teacher_overview")).data.results.length,
       1,

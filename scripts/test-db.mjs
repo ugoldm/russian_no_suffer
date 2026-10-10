@@ -102,6 +102,9 @@ try {
   await db.exec(
     readFileSync("supabase/migrations/003_direct_test_links.sql", "utf8"),
   );
+  await db.exec(
+    readFileSync("supabase/migrations/004_attempt_duration.sql", "utf8"),
+  );
   await as(teacher, false);
   const upgraded = await call("teacher_overview");
   assert.deepEqual(Object.keys(upgraded).sort(), ["results", "tests"]);
@@ -109,6 +112,15 @@ try {
   assert.equal(upgraded.results[0].testId, "ege-4-demo");
   assert.equal(upgraded.results[0].assignmentId, undefined);
   assert.equal(upgraded.results[0].groupName, undefined);
+  assert.equal(
+    upgraded.results[0].durationSeconds,
+    Math.max(
+      0,
+      Math.floor(
+        (Date.parse(result.submittedAt) - Date.parse(result.startedAt)) / 1000,
+      ),
+    ),
+  );
   assert.deepEqual(
     (await call("teacher_result", { attemptId: p.id })).exercises,
     result.exercises,
@@ -147,12 +159,42 @@ try {
   const next = await call("start_attempt", {
     token: direct.shareToken,
     name: "SQL Ученик",
+    startedAt: "2000-01-01T00:00:00Z",
   });
-  assert.equal(
-    (await call("submit_attempt", { attemptId: next.id, answers: {} }))
-      .attemptNumber,
-    2,
+  // Simulate elapsed time without waiting; only the privileged test setup can alter it.
+  await db.exec("reset role");
+  await db.query(
+    "update private.attempts set started_at=now()-interval '125 seconds' where id=$1",
+    [next.id],
   );
+  await as(student);
+  await call("get_test", { token: direct.shareToken });
+  await call("get_attempt", { attemptId: next.id });
+  const timed = await call("submit_attempt", {
+    attemptId: next.id,
+    answers: {},
+    durationSeconds: 1,
+    submittedAt: "2000-01-01T00:00:00Z",
+  });
+  assert.equal(timed.attemptNumber, 2);
+  assert.ok(timed.durationSeconds >= 125 && timed.durationSeconds < 130);
+  assert.deepEqual(
+    await call("submit_attempt", { attemptId: next.id, answers: {} }),
+    timed,
+  );
+  await db.exec("reset role");
+  await as(teacher, false);
+  assert.equal(
+    (await call("teacher_result", { attemptId: next.id })).durationSeconds,
+    timed.durationSeconds,
+  );
+  assert.equal(
+    (await call("teacher_overview")).results.find((p) => p.id === next.id)
+      .durationSeconds,
+    timed.durationSeconds,
+  );
+  await db.exec("reset role");
+  await as(student);
   const started = await call("start_attempt", {
     token: direct.shareToken,
     name: "SQL Ученик",

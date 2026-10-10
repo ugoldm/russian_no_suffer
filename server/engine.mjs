@@ -100,6 +100,17 @@ function result(state, attempt) {
     exam: test.exam,
     taskNumber: test.taskNumber,
     percentage: Math.round((attempt.correct / attempt.total) * 100),
+    durationSeconds:
+      attempt.startedAt && attempt.submittedAt
+        ? Math.max(
+            0,
+            Math.floor(
+              (Date.parse(attempt.submittedAt) -
+                Date.parse(attempt.startedAt)) /
+                1000,
+            ),
+          )
+        : null,
     exercises: test.exercises.map((e) => ({
       ...e,
       rawAnswer: attempt.answers[e.id] ?? (e.type === "multiple" ? [] : ""),
