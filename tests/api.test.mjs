@@ -69,6 +69,24 @@ test("HTTP API persists records across restart and isolates student sessions", a
       ).data,
       result,
     );
+    assert.equal(
+      (
+        await call("intruder", "teacher_set_result_hidden", {
+          attemptId: p.id,
+          hidden: true,
+        })
+      ).status,
+      403,
+    );
+    assert.deepEqual(
+      (
+        await call("teacher", "teacher_set_result_hidden", {
+          attemptId: p.id,
+          hidden: true,
+        })
+      ).data,
+      { id: p.id, teacherHidden: true },
+    );
     await new Promise((r) => server.close(r));
     server = createApp({ databasePath: path });
     await new Promise((r) => server.listen(0, "127.0.0.1", r));
@@ -80,6 +98,31 @@ test("HTTP API persists records across restart and isolates student sessions", a
     assert.equal(
       (await call("teacher", "teacher_overview")).data.results.length,
       1,
+    );
+    assert.equal(
+      (await call("teacher", "teacher_overview")).data.results[0].teacherHidden,
+      true,
+    );
+    assert.deepEqual(
+      (
+        await call("teacher", "teacher_set_result_hidden", {
+          attemptId: p.id,
+          hidden: false,
+        })
+      ).data,
+      { id: p.id, teacherHidden: false },
+    );
+    await new Promise((r) => server.close(r));
+    server = createApp({ databasePath: path });
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    url = `http://127.0.0.1:${server.address().port}/api/rpc`;
+    assert.equal(
+      (await call("teacher", "teacher_overview")).data.results[0].teacherHidden,
+      false,
+    );
+    assert.deepEqual(
+      (await call("student", "get_attempt", { attemptId: p.id })).data,
+      result,
     );
     const cross = await fetch(url, {
       method: "POST",

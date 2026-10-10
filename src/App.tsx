@@ -23,6 +23,9 @@ import {
   ChevronRight,
   Clock3,
   AlertCircle,
+  EyeOff,
+  Eye,
+  Undo2,
 } from "lucide-react";
 import {
   captchaKey,
@@ -192,8 +195,11 @@ function Teacher() {
     [error, setError] = useState("");
   const [tab, setTab] = useState("tests"),
     [exam, setExam] = useState("Все"),
+    [resultsExam, setResultsExam] = useState("Все"),
     [search, setSearch] = useState(""),
     [testFilter, setTestFilter] = useState("");
+  const [showHidden, setShowHidden] = useState(false),
+    [lastHiddenId, setLastHiddenId] = useState<string | null>(null);
   const [shareTest, setShareTest] = useState<Test | null>(null),
     [preview, setPreview] = useState<Test | null>(null),
     [detail, setDetail] = useState<Attempt | null>(null);
@@ -239,6 +245,32 @@ function Teacher() {
       setBusy(false);
     }
   }
+  async function setResultHidden(attemptId: string, hidden: boolean) {
+    setBusy(true);
+    try {
+      const saved = await rpc<{ id: string; teacherHidden: boolean }>(
+        "teacher_set_result_hidden",
+        { attemptId, hidden },
+      );
+      setOverview(
+        (current) =>
+          current && {
+            ...current,
+            results: current.results.map((r) =>
+              r.id === saved.id
+                ? { ...r, teacherHidden: saved.teacherHidden }
+                : r,
+            ),
+          },
+      );
+      setLastHiddenId(hidden ? saved.id : null);
+      setError("");
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
   if (!overview)
     return <TeacherLogin loading={loading} error={error} onSuccess={load} />;
   const tests = overview.tests
@@ -249,10 +281,40 @@ function Teacher() {
         examOrder(a.exam) - examOrder(b.exam) || a.taskNumber - b.taskNumber
       );
     });
-  const results = overview.results.filter(
-    (r) =>
-      r.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()) &&
-      (!testFilter || r.testId === testFilter),
+  const resultTests = Array.from(
+    new Map([
+      ...overview.results.map(
+        (r) =>
+          [
+            r.testId,
+            {
+              id: r.testId,
+              exam: r.exam,
+              taskNumber: r.taskNumber,
+            },
+          ] as const,
+      ),
+      ...overview.tests.map((t) => [t.id, t] as const),
+    ]).values(),
+  )
+    .filter((t) => resultsExam === "Все" || t.exam === resultsExam)
+    .sort(
+      (a, b) =>
+        (a.exam === "ЕГЭ" ? 0 : 1) - (b.exam === "ЕГЭ" ? 0 : 1) ||
+        a.taskNumber - b.taskNumber,
+    );
+  const visibleCount = overview.results.filter((r) => !r.teacherHidden).length;
+  const filteredResults = overview.results
+    .filter(
+      (r) =>
+        (resultsExam === "Все" || r.exam === resultsExam) &&
+        r.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()) &&
+        (!testFilter || r.testId === testFilter),
+    )
+    .sort((a, b) => Date.parse(b.submittedAt) - Date.parse(a.submittedAt));
+  const hiddenCount = filteredResults.filter((r) => r.teacherHidden).length;
+  const results = filteredResults.filter(
+    (r) => Boolean(r.teacherHidden) === showHidden,
   );
   const tabs = [
     { id: "tests", label: "Библиотека тестов", icon: BookOpen },
@@ -275,8 +337,8 @@ function Teacher() {
             >
               <Icon size={20} />
               <span>{label}</span>
-              {id === "results" && overview.results.length > 0 && (
-                <span className="nav-count">{overview.results.length}</span>
+              {id === "results" && visibleCount > 0 && (
+                <span className="nav-count">{visibleCount}</span>
               )}
             </button>
           ))}
@@ -378,15 +440,18 @@ function Teacher() {
                       <button
                         className="text-button"
                         onClick={() => {
+                          setResultsExam(t.exam);
                           setTestFilter(t.id);
                           setSearch("");
+                          setShowHidden(false);
                           setTab("results");
                         }}
                       >
                         Результаты (
                         {
-                          overview.results.filter((r) => r.testId === t.id)
-                            .length
+                          overview.results.filter(
+                            (r) => r.testId === t.id && !r.teacherHidden,
+                          ).length
                         }
                         )
                       </button>
@@ -424,58 +489,129 @@ function Teacher() {
             <>
               <div className="section-heading">
                 <h2>
-                  Работы учеников{" "}
-                  <span className="count-pill">{overview.results.length}</span>
+                  {showHidden ? "Скрытые работы" : "Работы учеников"}{" "}
+                  <span className="count-pill">
+                    {showHidden
+                      ? overview.results.length - visibleCount
+                      : visibleCount}
+                  </span>
                 </h2>
-                <Button kind="secondary" onClick={load} disabled={loading}>
+                <Button
+                  kind="secondary"
+                  onClick={load}
+                  disabled={loading || busy}
+                >
                   <RefreshCw size={16} />
                   Обновить
                 </Button>
               </div>
               <div className="results-filters">
-                <label className="search-field">
-                  <Search size={18} />
-                  <input
-                    aria-label="Поиск по имени ученика"
-                    placeholder="Найти ученика по имени"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </label>
-                <select
-                  aria-label="Фильтр по тесту"
-                  value={testFilter}
-                  onChange={(e) => setTestFilter(e.target.value)}
+                <div
+                  className="segmented results-exam"
+                  role="group"
+                  aria-label="Фильтр результатов по экзамену"
                 >
-                  <option value="">Все тесты</option>
-                  {Array.from(
-                    new Map([
-                      ...overview.results.map(
-                        (r) => [r.testId, testTitle(r)] as const,
-                      ),
-                      ...overview.tests.map(
-                        (t) => [t.id, testTitle(t)] as const,
-                      ),
-                    ]),
-                  ).map(([id, title]) => (
-                    <option key={id} value={id}>
-                      {title}
-                    </option>
+                  {["Все", "ЕГЭ", "ОГЭ"].map((e) => (
+                    <button
+                      key={e}
+                      className={resultsExam === e ? "selected" : ""}
+                      aria-pressed={resultsExam === e}
+                      onClick={() => {
+                        setResultsExam(e);
+                        if (
+                          e !== "Все" &&
+                          !resultTests.some(
+                            (t) => t.id === testFilter && t.exam === e,
+                          )
+                        ) {
+                          setTestFilter("");
+                        }
+                      }}
+                    >
+                      {e === "Все" ? "Все экзамены" : e}
+                    </button>
                   ))}
-                </select>
+                </div>
+                <label className="results-test-field">
+                  <span>Тест</span>
+                  <select
+                    value={testFilter}
+                    onChange={(e) => setTestFilter(e.target.value)}
+                  >
+                    <option value="">
+                      Все тесты{resultsExam === "Все" ? "" : ` ${resultsExam}`}
+                    </option>
+                    {resultTests.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {testTitle(t)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="results-name-field">
+                  <span>Поиск по имени</span>
+                  <span className="search-field">
+                    <Search size={17} />
+                    <input
+                      placeholder="Имя ученика"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </span>
+                </label>
+              </div>
+              <div className="results-visibility">
+                <div
+                  className="segmented"
+                  role="group"
+                  aria-label="Видимость работ"
+                >
+                  <button
+                    className={!showHidden ? "selected" : ""}
+                    aria-pressed={!showHidden}
+                    onClick={() => setShowHidden(false)}
+                  >
+                    Работы <span>{filteredResults.length - hiddenCount}</span>
+                  </button>
+                  <button
+                    className={showHidden ? "selected" : ""}
+                    aria-pressed={showHidden}
+                    onClick={() => setShowHidden(true)}
+                  >
+                    <EyeOff size={16} /> Скрытые <span>{hiddenCount}</span>
+                  </button>
+                </div>
+                {lastHiddenId && (
+                  <div className="result-hidden-notice" role="status">
+                    <span>Работа скрыта</span>
+                    <button
+                      className="text-button"
+                      disabled={busy || loading}
+                      onClick={() => setResultHidden(lastHiddenId, false)}
+                    >
+                      <Undo2 size={16} /> Отменить
+                    </button>
+                  </div>
+                )}
               </div>
               {results.length === 0 ? (
                 <Empty
                   icon={<FileCheck2 />}
                   title={
-                    overview.results.length
-                      ? "Работы не найдены"
-                      : "Результаты появятся здесь"
+                    showHidden
+                      ? "Скрытых работ нет"
+                      : overview.results.length
+                        ? "Работы не найдены"
+                        : "Результаты появятся здесь"
                   }
                   text={
-                    overview.results.length
-                      ? "Попробуйте другое имя или тест."
-                      : "Как только ученик отправит работу, вы увидите его ответы и результат."
+                    showHidden
+                      ? "Здесь появятся скрытые работы. Их можно будет вернуть в основной список."
+                      : hiddenCount > 0
+                        ? "Проверьте список «Скрытые» или выберите другой экзамен, тест или имя."
+                        : overview.results.length
+                          ? "Попробуйте выбрать другой экзамен, тест или имя."
+                          : "Как только ученик отправит работу, вы увидите его ответы и результат."
                   }
                 />
               ) : (
@@ -496,7 +632,6 @@ function Teacher() {
                         <tr key={r.id}>
                           <td>
                             <strong>{r.name}</strong>
-                            <small>Попытка {r.attemptNumber}</small>
                           </td>
                           <td>{testTitle(r)}</td>
                           <td>
@@ -512,13 +647,30 @@ function Teacher() {
                           <td>{formatDuration(r.durationSeconds)}</td>
                           <td>{formatDate(r.submittedAt)}</td>
                           <td>
-                            <button
-                              className="text-button"
-                              disabled={busy}
-                              onClick={() => showResult(r)}
-                            >
-                              Открыть <ChevronRight size={15} />
-                            </button>
+                            <div className="result-row-actions">
+                              <button
+                                className="text-button"
+                                disabled={busy || loading}
+                                onClick={() => showResult(r)}
+                              >
+                                Открыть <ChevronRight size={15} />
+                              </button>
+                              <button
+                                className="text-button"
+                                disabled={busy || loading}
+                                aria-label={`${showHidden ? "Вернуть" : "Скрыть"} работу: ${r.name}, ${testTitle(r)}`}
+                                onClick={() =>
+                                  setResultHidden(r.id, !showHidden)
+                                }
+                              >
+                                {showHidden ? (
+                                  <Eye size={15} />
+                                ) : (
+                                  <EyeOff size={15} />
+                                )}
+                                {showHidden ? "Вернуть" : "Скрыть"}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -814,7 +966,9 @@ function Review({
               <span className="muted">Номера правильных ответов:</span>{" "}
               <strong>
                 {e.options
-                  .filter((o) => (e.correctAnswer || e.key || []).includes(o.id))
+                  .filter((o) =>
+                    (e.correctAnswer || e.key || []).includes(o.id),
+                  )
                   .map((o) => o.id)
                   .join("") || "Не указаны"}
               </strong>
@@ -1035,7 +1189,7 @@ function Student({ token }: { token: string }) {
                   ? "Отличная работа!"
                   : result.percentage >= 50
                     ? "Хорошее начало!"
-                    : "Каждая попытка — шаг вперёд."}
+                    : "Разберём ответы и потренируемся ещё."}
               </h1>
               <p>{result.name}, теперь можно спокойно разобрать ответы.</p>
               <div className="result-score">

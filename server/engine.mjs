@@ -93,8 +93,9 @@ export function migrateState(state) {
 }
 function result(state, attempt) {
   const test = state.tests.find((t) => t.versionId === attempt.versionId);
+  const { teacherHidden, ...savedAttempt } = attempt;
   return {
-    ...attempt,
+    ...savedAttempt,
     testId: test.id,
     testTitle: test.title,
     exam: test.exam,
@@ -158,7 +159,7 @@ export function execute(state, action, args, actor) {
           .filter((a) => a.status === "submitted")
           .map((a) => {
             const { exercises, answers, ownerId, ...row } = result(state, a);
-            return row;
+            return { ...row, teacherHidden: a.teacherHidden === true };
           }),
       };
     case "teacher_preview": {
@@ -178,6 +179,16 @@ export function execute(state, action, args, actor) {
       );
       if (!a) throw new AppError("Результат не найден.", 404);
       return result(state, a);
+    }
+    case "teacher_set_result_hidden": {
+      if (typeof args.hidden !== "boolean")
+        throw new AppError("Укажите, нужно ли скрыть работу.");
+      const a = state.attempts.find(
+        (a) => a.id === args.attemptId && a.status === "submitted",
+      );
+      if (!a) throw new AppError("Результат не найден.", 404);
+      a.teacherHidden = args.hidden;
+      return { id: a.id, teacherHidden: a.teacherHidden };
     }
     case "get_test": {
       return publicTest(testByToken());

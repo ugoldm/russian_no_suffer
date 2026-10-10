@@ -36,11 +36,11 @@ export interface Attempt {
   versionId: string;
   status: string;
   testId: string;
-  attemptNumber: number;
   correct: number;
   total: number;
   percentage: number;
   submittedAt: string;
+  teacherHidden?: boolean;
   durationSeconds: number | null;
   testTitle: string;
   exam: string;

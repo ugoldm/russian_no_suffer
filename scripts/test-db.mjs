@@ -105,6 +105,9 @@ try {
   await db.exec(
     readFileSync("supabase/migrations/004_attempt_duration.sql", "utf8"),
   );
+  await db.exec(
+    readFileSync("supabase/migrations/005_hide_results.sql", "utf8"),
+  );
   await as(teacher, false);
   const upgraded = await call("teacher_overview");
   assert.deepEqual(Object.keys(upgraded).sort(), ["results", "tests"]);
@@ -193,12 +196,92 @@ try {
       .durationSeconds,
     timed.durationSeconds,
   );
+  assert.equal(
+    (await call("teacher_overview")).results.find((r) => r.id === next.id)
+      .teacherHidden,
+    false,
+  );
+  for (const hidden of [null, "true", 1]) {
+    await assert.rejects(
+      () => call("teacher_set_result_hidden", { attemptId: next.id, hidden }),
+      /нужно ли скрыть/,
+    );
+  }
+  for (const hidden of [true, true, false, false, true]) {
+    assert.deepEqual(
+      await call("teacher_set_result_hidden", { attemptId: next.id, hidden }),
+      { id: next.id, teacherHidden: hidden },
+    );
+    assert.equal(
+      (await call("teacher_overview")).results.find((r) => r.id === next.id)
+        .teacherHidden,
+      hidden,
+    );
+    assert.deepEqual(
+      await call("teacher_result", { attemptId: next.id }),
+      timed,
+    );
+  }
+  await assert.rejects(
+    () =>
+      call("teacher_set_result_hidden", {
+        attemptId: "99999999-9999-4999-8999-999999999999",
+        hidden: true,
+      }),
+    /недоступен/,
+  );
   await db.exec("reset role");
   await as(student);
+  await assert.rejects(
+    () =>
+      call("teacher_set_result_hidden", { attemptId: next.id, hidden: false }),
+    /преподавателя/,
+  );
+  assert.deepEqual(await call("get_attempt", { attemptId: next.id }), timed);
+  assert.deepEqual(
+    await call("submit_attempt", {
+      attemptId: next.id,
+      answers: {},
+      teacherHidden: false,
+    }),
+    timed,
+  );
   const started = await call("start_attempt", {
     token: direct.shareToken,
     name: "SQL Ученик",
   });
+  await db.exec("reset role");
+  await as(teacher, false);
+  await assert.rejects(
+    () =>
+      call("teacher_set_result_hidden", {
+        attemptId: started.id,
+        hidden: true,
+      }),
+    /недоступен/,
+  );
+  await db.exec("reset role");
+  // A second allowlisted teacher still cannot change another teacher's work.
+  await db.exec(`insert into private.teachers values('${other}')`);
+  await as(other, false);
+  await assert.rejects(
+    () =>
+      call("teacher_set_result_hidden", { attemptId: next.id, hidden: false }),
+    /недоступен/,
+  );
+  assert.equal((await call("teacher_overview")).results.length, 0);
+  await db.exec("reset role");
+  await db.exec(`delete from private.teachers where user_id='${other}'`);
+  await as(teacher, false);
+  assert.deepEqual(
+    await call("teacher_set_result_hidden", {
+      attemptId: next.id,
+      hidden: false,
+    }),
+    { id: next.id, teacherHidden: false },
+  );
+  await db.exec("reset role");
+  await as(student);
   await assert.rejects(
     () => call("get_test", { token: "invalid" }),
     /не найден/,
@@ -272,13 +355,18 @@ try {
     null,
   );
   await db.exec("set role anon");
+  await assert.rejects(
+    () =>
+      call("teacher_set_result_hidden", { attemptId: next.id, hidden: true }),
+    /permission denied/,
+  );
   await assert.rejects(() => call("teacher_overview"), /permission denied/);
   await assert.rejects(
     () => call("get_test", { token: direct.shareToken }),
     /permission denied/,
   );
   console.log(
-    "Supabase migration verified: grading, RLS boundary, roles, idempotency, direct links, legacy upgrade, immutable versions.",
+    "Supabase migration verified: grading, RLS boundary, roles, idempotency, direct links, legacy upgrade, immutable versions, reversible result hiding.",
   );
 } finally {
   await db.close();
