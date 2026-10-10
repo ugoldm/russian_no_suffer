@@ -1016,10 +1016,12 @@ td small {
 }
 .question-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 9px;
   margin: 23px 0;
 }
 .question-tabs button {
+  flex-shrink: 0;
   width: 35px;
   height: 35px;
   display: grid;
