@@ -207,21 +207,89 @@ function Teacher() {
     [detail, setDetail] = useState<Attempt | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false),
     [busy, setBusy] = useState(false);
-  const load = async () => {
-    setLoading(true);
+  const overviewVersion = useRef(0),
+    refreshRequest = useRef(0),
+    markingSeen = useRef(false);
+  const load = async (background = false) => {
+    const request = ++refreshRequest.current;
+    const version = overviewVersion.current;
+    if (!background) setLoading(true);
     try {
       const data = await rpc<Overview>("teacher_overview");
+      if (
+        request !== refreshRequest.current ||
+        version !== overviewVersion.current
+      )
+        return;
       setOverview(data);
-      setError("");
+      if (!background) setError("");
     } catch (e) {
-      setError(errorText(e));
+      if (!background) setError(errorText(e));
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   };
   useEffect(() => {
     void load();
   }, []);
+  const hasOverview = overview !== null;
+  useEffect(() => {
+    if (!hasOverview || busy) return;
+    const refresh = () => {
+      if (!document.hidden && !markingSeen.current) void load(true);
+    };
+    const timer = window.setInterval(refresh, 30_000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [hasOverview, busy]);
+  useEffect(() => {
+    if (
+      tab !== "results" ||
+      !overview ||
+      markingSeen.current ||
+      busy ||
+      document.hidden
+    )
+      return;
+    const ids = overview.results
+      .filter((r) => r.teacherUnread)
+      .map((r) => r.id);
+    if (!ids.length) return;
+    markingSeen.current = true;
+    void (async () => {
+      try {
+        for (let offset = 0; offset < ids.length; offset += 500) {
+          const { seenIds } = await rpc<{ seenIds: string[] }>(
+            "teacher_mark_results_seen",
+            { attemptIds: ids.slice(offset, offset + 500) },
+          );
+          overviewVersion.current += 1;
+          setOverview(
+            (current) =>
+              current && {
+                ...current,
+                results: current.results.map((r) =>
+                  seenIds.includes(r.id) ? { ...r, teacherUnread: false } : r,
+                ),
+              },
+          );
+        }
+      } catch (e) {
+        setError(`Не удалось отметить работы просмотренными. ${errorText(e)}`);
+      } finally {
+        markingSeen.current = false;
+      }
+    })();
+  }, [tab, overview, busy]);
+  function openResults() {
+    setTab("results");
+    void load();
+  }
   async function showPreview(t: Test) {
     setBusy(true);
     try {
@@ -254,6 +322,7 @@ function Teacher() {
         "teacher_set_result_hidden",
         { attemptId, hidden },
       );
+      overviewVersion.current += 1;
       setOverview(
         (current) =>
           current && {
@@ -274,7 +343,9 @@ function Teacher() {
     }
   }
   if (!overview)
-    return <TeacherLogin loading={loading} error={error} onSuccess={load} />;
+    return (
+      <TeacherLogin loading={loading} error={error} onSuccess={() => load()} />
+    );
   const tests = overview.tests
     .filter((t) => exam === "Все" || t.exam === exam)
     .sort((a, b) => {
@@ -305,7 +376,9 @@ function Teacher() {
         (a.exam === "ЕГЭ" ? 0 : 1) - (b.exam === "ЕГЭ" ? 0 : 1) ||
         a.taskNumber - b.taskNumber,
     );
-  const visibleCount = overview.results.filter((r) => !r.teacherHidden).length;
+  const unreadCount = overview.results.filter(
+    (r) => r.teacherUnread && !r.teacherHidden,
+  ).length;
   const orderedResults = [...overview.results].sort(
     (a, b) =>
       Date.parse(b.submittedAt) - Date.parse(a.submittedAt) ||
@@ -339,15 +412,23 @@ function Teacher() {
             <button
               key={id}
               onClick={() => {
-                setTab(id);
+                if (id === "results") openResults();
+                else setTab(id);
                 setMobileMenu(false);
               }}
               className={`nav-item ${tab === id ? "active" : ""}`}
             >
               <Icon size={20} />
               <span>{label}</span>
-              {id === "results" && visibleCount > 0 && (
-                <span className="nav-count">{visibleCount}</span>
+              {id === "results" && unreadCount > 0 && (
+                <span
+                  className="nav-count"
+                  role="status"
+                  aria-label={`Новые прохождения: ${unreadCount}`}
+                  title={`Новые прохождения: ${unreadCount}`}
+                >
+                  {unreadCount}
+                </span>
               )}
             </button>
           ))}
@@ -365,6 +446,7 @@ function Teacher() {
             aria-label="Выйти"
             onClick={async () => {
               await logout();
+              refreshRequest.current += 1;
               setOverview(null);
               setError("");
             }}
@@ -453,7 +535,7 @@ function Teacher() {
                           setTestFilter(t.id);
                           setSearch("");
                           setShowHidden(false);
-                          setTab("results");
+                          openResults();
                         }}
                       >
                         Результаты (
@@ -503,7 +585,7 @@ function Teacher() {
                 </h2>
                 <Button
                   kind="secondary"
-                  onClick={load}
+                  onClick={() => void load()}
                   disabled={loading || busy}
                 >
                   <RefreshCw size={16} />

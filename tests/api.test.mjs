@@ -46,6 +46,18 @@ test("HTTP API persists records across restart and isolates student sessions", a
     ).data;
     assert.equal(result.percentage, 0);
     assert.equal(
+      (await call("teacher", "teacher_overview")).data.results[0].teacherUnread,
+      true,
+    );
+    assert.equal(
+      (
+        await call("intruder", "teacher_mark_results_seen", {
+          attemptIds: [p.id],
+        })
+      ).status,
+      403,
+    );
+    assert.equal(
       result.durationSeconds,
       Math.floor(
         (Date.parse(result.submittedAt) - Date.parse(result.startedAt)) / 1000,
@@ -103,6 +115,18 @@ test("HTTP API persists records across restart and isolates student sessions", a
       (await call("teacher", "teacher_overview")).data.results[0].teacherHidden,
       true,
     );
+    assert.equal(
+      (await call("teacher", "teacher_overview")).data.results[0].teacherUnread,
+      true,
+    );
+    assert.deepEqual(
+      (
+        await call("teacher", "teacher_mark_results_seen", {
+          attemptIds: [p.id],
+        })
+      ).data,
+      { seenIds: [p.id] },
+    );
     assert.deepEqual(
       (
         await call("teacher", "teacher_set_result_hidden", {
@@ -118,6 +142,10 @@ test("HTTP API persists records across restart and isolates student sessions", a
     url = `http://127.0.0.1:${server.address().port}/api/rpc`;
     assert.equal(
       (await call("teacher", "teacher_overview")).data.results[0].teacherHidden,
+      false,
+    );
+    assert.equal(
+      (await call("teacher", "teacher_overview")).data.results[0].teacherUnread,
       false,
     );
     assert.deepEqual(

@@ -108,10 +108,14 @@ try {
   await db.exec(
     readFileSync("supabase/migrations/005_hide_results.sql", "utf8"),
   );
+  await db.exec(
+    readFileSync("supabase/migrations/006_unread_results.sql", "utf8"),
+  );
   await as(teacher, false);
   const upgraded = await call("teacher_overview");
   assert.deepEqual(Object.keys(upgraded).sort(), ["results", "tests"]);
   assert.equal(upgraded.results[0].id, p.id);
+  assert.equal(upgraded.results[0].teacherUnread, false);
   assert.equal(upgraded.results[0].testId, "ege-4-demo");
   assert.equal(upgraded.results[0].assignmentId, undefined);
   assert.equal(upgraded.results[0].groupName, undefined);
@@ -178,6 +182,7 @@ try {
     answers: {},
     durationSeconds: 1,
     submittedAt: "2000-01-01T00:00:00Z",
+    teacherSeen: true,
   });
   assert.equal(timed.attemptNumber, 2);
   assert.ok(timed.durationSeconds >= 125 && timed.durationSeconds < 130);
@@ -187,6 +192,61 @@ try {
   );
   await db.exec("reset role");
   await as(teacher, false);
+  assert.equal(
+    (await call("teacher_overview")).results.find((r) => r.id === next.id)
+      .teacherUnread,
+    true,
+  );
+  for (const attemptIds of [
+    undefined,
+    null,
+    "all",
+    [null],
+    Array(501).fill(next.id),
+  ]) {
+    await assert.rejects(
+      () => call("teacher_mark_results_seen", { attemptIds }),
+      /список/,
+    );
+  }
+  await assert.rejects(
+    () =>
+      call("teacher_mark_results_seen", {
+        attemptIds: [next.id, "99999999-9999-4999-8999-999999999999"],
+      }),
+    /недоступен/,
+  );
+  assert.equal(
+    (await call("teacher_overview")).results.find((r) => r.id === next.id)
+      .teacherUnread,
+    true,
+  );
+  assert.deepEqual(
+    await call("teacher_mark_results_seen", { attemptIds: [p.id] }),
+    { seenIds: [p.id] },
+  );
+  assert.equal(
+    (await call("teacher_overview")).results.find((r) => r.id === next.id)
+      .teacherUnread,
+    true,
+  );
+  assert.deepEqual(
+    await call("teacher_mark_results_seen", { attemptIds: [next.id, next.id] }),
+    { seenIds: [next.id] },
+  );
+  assert.deepEqual(
+    await call("teacher_mark_results_seen", { attemptIds: [next.id] }),
+    { seenIds: [next.id] },
+  );
+  assert.deepEqual(
+    await call("teacher_mark_results_seen", { attemptIds: [] }),
+    { seenIds: [] },
+  );
+  assert.equal(
+    (await call("teacher_overview")).results.find((r) => r.id === next.id)
+      .teacherUnread,
+    false,
+  );
   assert.equal(
     (await call("teacher_result", { attemptId: next.id })).durationSeconds,
     timed.durationSeconds,
@@ -237,6 +297,10 @@ try {
       call("teacher_set_result_hidden", { attemptId: next.id, hidden: false }),
     /преподавателя/,
   );
+  await assert.rejects(
+    () => call("teacher_mark_results_seen", { attemptIds: [next.id] }),
+    /преподавателя/,
+  );
   assert.deepEqual(await call("get_attempt", { attemptId: next.id }), timed);
   assert.deepEqual(
     await call("submit_attempt", {
@@ -260,6 +324,15 @@ try {
       }),
     /недоступен/,
   );
+  await assert.rejects(
+    () => call("teacher_mark_results_seen", { attemptIds: [started.id] }),
+    /недоступен/,
+  );
+  assert.equal(
+    (await call("teacher_overview")).results.find((r) => r.id === next.id)
+      .teacherUnread,
+    false,
+  );
   await db.exec("reset role");
   // A second allowlisted teacher still cannot change another teacher's work.
   await db.exec(`insert into private.teachers values('${other}')`);
@@ -267,6 +340,10 @@ try {
   await assert.rejects(
     () =>
       call("teacher_set_result_hidden", { attemptId: next.id, hidden: false }),
+    /недоступен/,
+  );
+  await assert.rejects(
+    () => call("teacher_mark_results_seen", { attemptIds: [next.id] }),
     /недоступен/,
   );
   assert.equal((await call("teacher_overview")).results.length, 0);
@@ -356,6 +433,10 @@ try {
   );
   await db.exec("set role anon");
   await assert.rejects(
+    () => call("teacher_mark_results_seen", { attemptIds: [next.id] }),
+    /permission denied/,
+  );
+  await assert.rejects(
     () =>
       call("teacher_set_result_hidden", { attemptId: next.id, hidden: true }),
     /permission denied/,
@@ -366,7 +447,7 @@ try {
     /permission denied/,
   );
   console.log(
-    "Supabase migration verified: grading, RLS boundary, roles, idempotency, direct links, legacy upgrade, immutable versions, reversible result hiding.",
+    "Supabase migration verified: grading, RLS boundary, roles, idempotency, direct links, legacy upgrade, immutable versions, reversible result hiding, unread acknowledgement.",
   );
 } finally {
   await db.close();

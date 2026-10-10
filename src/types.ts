@@ -41,6 +41,7 @@ export interface Attempt {
   percentage: number;
   submittedAt: string;
   teacherHidden?: boolean;
+  teacherUnread?: boolean;
   durationSeconds: number | null;
   testTitle: string;
   exam: string;

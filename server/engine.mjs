@@ -74,6 +74,7 @@ export function migrateState(state) {
   for (const attempt of state.attempts) {
     const test = state.tests.find((t) => t.versionId === attempt.versionId);
     attempt.testId = test.id;
+    attempt.teacherSeen ??= attempt.status === "submitted";
     delete attempt.assignmentId;
   }
   // Old separate links could each have an attempt 1 for the same student.
@@ -93,7 +94,7 @@ export function migrateState(state) {
 }
 function result(state, attempt) {
   const test = state.tests.find((t) => t.versionId === attempt.versionId);
-  const { teacherHidden, ...savedAttempt } = attempt;
+  const { teacherHidden, teacherSeen, ...savedAttempt } = attempt;
   return {
     ...savedAttempt,
     testId: test.id,
@@ -159,7 +160,11 @@ export function execute(state, action, args, actor) {
           .filter((a) => a.status === "submitted")
           .map((a) => {
             const { exercises, answers, ownerId, ...row } = result(state, a);
-            return { ...row, teacherHidden: a.teacherHidden === true };
+            return {
+              ...row,
+              teacherHidden: a.teacherHidden === true,
+              teacherUnread: a.teacherSeen === false,
+            };
           }),
       };
     case "teacher_preview": {
@@ -192,6 +197,26 @@ export function execute(state, action, args, actor) {
     }
     case "get_test": {
       return publicTest(testByToken());
+    }
+    case "teacher_mark_results_seen": {
+      if (
+        !Array.isArray(args.attemptIds) ||
+        args.attemptIds.length > 500 ||
+        args.attemptIds.some((id) => typeof id !== "string" || !id)
+      )
+        throw new AppError("Укажите список завершённых работ.");
+      const seenIds = [...new Set(args.attemptIds)];
+      const works = seenIds.map((id) => {
+        const a = state.attempts.find(
+          (a) => a.id === id && a.status === "submitted",
+        );
+        if (!a) throw new AppError("Результат недоступен.", 404);
+        return a;
+      });
+      works.forEach((a) => {
+        a.teacherSeen = true;
+      });
+      return { seenIds };
     }
     case "start_attempt": {
       const t = testByToken();
@@ -253,6 +278,7 @@ export function execute(state, action, args, actor) {
       p.correct = correct;
       p.total = t.exercises.length;
       p.status = "submitted";
+      p.teacherSeen = false;
       p.submittedAt = now;
       return result(state, p);
     }
