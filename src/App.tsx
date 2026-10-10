@@ -37,6 +37,7 @@ import {
   verify,
 } from "./api";
 import type { Attempt, Draft, Exercise, Overview, Test } from "./types";
+import { summarizeResults } from "./results-summary";
 // Omit the paper answer-sheet instruction in every web view, including history.
 const webPrompt = (text: string | undefined) =>
   text?.replaceAll("Запишите номера ответов.", "").trim();
@@ -316,6 +317,7 @@ function Teacher() {
   const results = filteredResults.filter(
     (r) => Boolean(r.teacherHidden) === showHidden,
   );
+  const summary = summarizeResults(results);
   const tabs = [
     { id: "tests", label: "Библиотека тестов", icon: BookOpen },
     { id: "results", label: "Результаты", icon: LayoutGrid },
@@ -490,11 +492,7 @@ function Teacher() {
               <div className="section-heading">
                 <h2>
                   {showHidden ? "Скрытые работы" : "Работы учеников"}{" "}
-                  <span className="count-pill">
-                    {showHidden
-                      ? overview.results.length - visibleCount
-                      : visibleCount}
-                  </span>
+                  <span className="count-pill">{results.length}</span>
                 </h2>
                 <Button
                   kind="secondary"
@@ -594,6 +592,37 @@ function Teacher() {
                   </div>
                 )}
               </div>
+              <dl
+                className="results-summary"
+                aria-label="Сводка по выбранным работам"
+              >
+                <div className="results-summary-item">
+                  <dt>Количество прохождений</dt>
+                  <dd>{summary.count}</dd>
+                </div>
+                <div className="results-summary-item">
+                  <dt>Средняя доля верных ответов</dt>
+                  <dd>
+                    {summary.averagePercentage == null
+                      ? "—"
+                      : `${summary.averagePercentage}%`}
+                  </dd>
+                </div>
+                <div className="results-summary-item">
+                  <dt>Среднее время прохождения</dt>
+                  <dd>
+                    {summary.count
+                      ? formatDuration(summary.averageDurationSeconds)
+                      : "—"}
+                  </dd>
+                  {summary.timedCount < summary.count && (
+                    <p className="results-summary-note">
+                      Время записано у {summary.timedCount} из {summary.count}{" "}
+                      работ
+                    </p>
+                  )}
+                </div>
+              </dl>
               {results.length === 0 ? (
                 <Empty
                   icon={<FileCheck2 />}
