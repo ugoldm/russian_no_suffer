@@ -38,6 +38,7 @@ import {
 } from "./api";
 import type { Attempt, Draft, Exercise, Overview, Test } from "./types";
 import { summarizeResults } from "./results-summary";
+import { formatReviewAnswer } from "./review-answer";
 // Omit the paper answer-sheet instruction in every web view, including history.
 const webPrompt = (text: string | undefined) =>
   text?.replaceAll("Запишите номера ответов.", "").trim();
@@ -305,14 +306,20 @@ function Teacher() {
         a.taskNumber - b.taskNumber,
     );
   const visibleCount = overview.results.filter((r) => !r.teacherHidden).length;
-  const filteredResults = overview.results
-    .filter(
-      (r) =>
-        (resultsExam === "Все" || r.exam === resultsExam) &&
-        r.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()) &&
-        (!testFilter || r.testId === testFilter),
-    )
-    .sort((a, b) => Date.parse(b.submittedAt) - Date.parse(a.submittedAt));
+  const orderedResults = [...overview.results].sort(
+    (a, b) =>
+      Date.parse(b.submittedAt) - Date.parse(a.submittedAt) ||
+      b.id.localeCompare(a.id),
+  );
+  const submissionNumbers = new Map(
+    orderedResults.map((r, index) => [r.id, orderedResults.length - index]),
+  );
+  const filteredResults = orderedResults.filter(
+    (r) =>
+      (resultsExam === "Все" || r.exam === resultsExam) &&
+      r.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()) &&
+      (!testFilter || r.testId === testFilter),
+  );
   const hiddenCount = filteredResults.filter((r) => r.teacherHidden).length;
   const results = filteredResults.filter(
     (r) => Boolean(r.teacherHidden) === showHidden,
@@ -648,6 +655,13 @@ function Teacher() {
                   <table>
                     <thead>
                       <tr>
+                        <th
+                          className="result-order"
+                          scope="col"
+                          aria-label="Порядковый номер отправки"
+                        >
+                          №
+                        </th>
                         <th>Ученик</th>
                         <th>Тест</th>
                         <th>Результат</th>
@@ -659,6 +673,9 @@ function Teacher() {
                     <tbody>
                       {results.map((r) => (
                         <tr key={r.id}>
+                          <td className="result-order">
+                            {submissionNumbers.get(r.id)}
+                          </td>
                           <td>
                             <strong>{r.name}</strong>
                           </td>
@@ -678,7 +695,7 @@ function Teacher() {
                           <td>
                             <div className="result-row-actions">
                               <button
-                                className="text-button"
+                                className="result-open-button"
                                 disabled={busy || loading}
                                 onClick={() => showResult(r)}
                               >
@@ -939,15 +956,6 @@ function ShareModal({ test, onClose }: { test: Test; onClose: () => void }) {
     </Modal>
   );
 }
-function readableAnswer(e: Exercise, answer: unknown) {
-  if (Array.isArray(answer))
-    return answer.length
-      ? answer
-          .map((id) => e.options?.find((o) => o.id === id)?.text || id)
-          .join(", ")
-      : "Нет ответа";
-  return typeof answer === "string" && answer ? answer : "Нет ответа";
-}
 function Review({
   exercises,
   preview = false,
@@ -981,38 +989,33 @@ function Review({
             )}
           </div>
           <h4>{webPrompt(e.prompt)}</h4>
-          {preview && (
-            <div className="preview-options">
+          {e.type !== "text" && !!e.options?.length && (
+            <ol className="review-options" aria-label="Варианты ответов">
               {e.options?.map((o) => (
-                <span key={o.id}>
-                  {o.id}. {o.text}
-                </span>
+                <li key={o.id}>{o.text}</li>
               ))}
-            </div>
+            </ol>
           )}
           {preview && e.type !== "text" && !!e.options?.length && (
             <p>
               <span className="muted">Номера правильных ответов:</span>{" "}
               <strong>
-                {e.options
-                  .filter((o) =>
-                    (e.correctAnswer || e.key || []).includes(o.id),
-                  )
-                  .map((o) => o.id)
-                  .join("") || "Не указаны"}
+                {formatReviewAnswer(e, e.correctAnswer || e.key, "Не указаны")}
               </strong>
             </p>
           )}
           {!preview && (
             <p>
-              <span className="muted">Ответ ученика:</span>{" "}
-              {readableAnswer(e, e.rawAnswer)}
+              <span className="muted">
+                {e.type === "text" ? "Ответ ученика:" : "Выбранный ответ:"}
+              </span>{" "}
+              <strong>{formatReviewAnswer(e, e.rawAnswer)}</strong>
             </p>
           )}
           {(!preview || e.type === "text") && (
             <p>
               <span className="muted">Правильный ответ:</span>{" "}
-              <strong>{readableAnswer(e, e.correctAnswer || e.key)}</strong>
+              <strong>{formatReviewAnswer(e, e.correctAnswer || e.key)}</strong>
             </p>
           )}
           {!preview && e.explanation?.trim() && (
@@ -1397,7 +1400,7 @@ function Student({ token }: { token: string }) {
                 </label>
               ) : (
                 <div className="answer-options">
-                  {exercise?.options?.map((o) => {
+                  {exercise?.options?.map((o, optionIndex) => {
                     const a = draft.answers[exercise.id];
                     const checked = Array.isArray(a)
                       ? a.includes(o.id)
@@ -1415,7 +1418,7 @@ function Student({ token }: { token: string }) {
                           checked={checked}
                           onChange={() => choose(o.id)}
                         />
-                        <span className="option-number">{o.id}</span>
+                        <span className="option-number">{optionIndex + 1}</span>
                         <span className="option-word">{o.text}</span>
                         <span className="option-check">
                           {checked ? <Check size={17} /> : null}

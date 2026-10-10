@@ -735,6 +735,29 @@ td small {
 .table-wrap .text-button {
   font-size: 12px;
 }
+.result-open-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 9px 13px;
+  border: 1px solid var(--green);
+  border-radius: 8px;
+  background: var(--green);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background 0.15s;
+}
+.result-open-button:hover:not(:disabled) {
+  background: var(--green-dark);
+}
+.result-order {
+  width: 50px;
+  text-align: center;
+  white-space: nowrap;
+}
 .results-visibility {
   display: flex;
   flex-wrap: wrap;
@@ -902,12 +925,18 @@ td small {
   font-size: 12px;
   margin: 9px 0;
 }
-.preview-options {
+.review-options {
   display: flex;
   flex-direction: column;
   gap: 12px;
   font-size: 13px;
   margin: 12px 0;
+  padding-left: 26px;
+  line-height: 1.6;
+}
+.review-options li {
+  padding-left: 3px;
+  overflow-wrap: anywhere;
 }
 .explanation {
   font-size: 11px;
