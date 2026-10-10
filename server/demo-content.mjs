@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 // Synthetic demonstration content. Server-only: never import into frontend.
 export const demoTest = {
   id: "ege-4-demo",
@@ -65,5 +66,13 @@ export const demoTest = {
   })),
 };
 export function initialState() {
-  return { tests: [demoTest], groups: [], assignments: [], attempts: [] };
+  return {
+    tests: [
+      {
+        ...structuredClone(demoTest),
+        shareToken: randomBytes(24).toString("hex"),
+      },
+    ],
+    attempts: [],
+  };
 }

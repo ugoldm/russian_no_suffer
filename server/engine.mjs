@@ -15,7 +15,7 @@ const cleanName = (value) => {
   return value.trim();
 };
 export function publicTest(test) {
-  const { exercises, ...metadata } = test;
+  const { exercises, shareToken, legacyTokens, ...metadata } = test;
   return {
     ...metadata,
     exerciseCount: exercises.length,
@@ -63,22 +63,46 @@ export function grade(exercise, raw) {
     raw.length > 0 && exercise.key.some((k) => normalize(k) === normalize(raw))
   );
 }
+// Upgrade existing local records without deleting attempts or their frozen versions.
+export function migrateState(state) {
+  for (const test of state.tests) {
+    test.shareToken ||= randomBytes(24).toString("hex");
+    test.legacyTokens ||= (state.assignments || [])
+      .filter((a) => a.versionId === test.versionId && a.active)
+      .map((a) => a.token);
+  }
+  for (const attempt of state.attempts) {
+    const test = state.tests.find((t) => t.versionId === attempt.versionId);
+    attempt.testId = test.id;
+    delete attempt.assignmentId;
+  }
+  // Old separate links could each have an attempt 1 for the same student.
+  if (state.assignments) {
+    const counts = new Map();
+    for (const attempt of [...state.attempts].sort((a, b) =>
+      a.startedAt.localeCompare(b.startedAt),
+    )) {
+      const key = JSON.stringify([attempt.ownerId, attempt.versionId]);
+      attempt.attemptNumber = (counts.get(key) || 0) + 1;
+      counts.set(key, attempt.attemptNumber);
+    }
+  }
+  delete state.groups;
+  delete state.assignments;
+  return state;
+}
 function result(state, attempt) {
-  const assignment = state.assignments.find(
-    (a) => a.id === attempt.assignmentId,
-  );
   const test = state.tests.find((t) => t.versionId === attempt.versionId);
   return {
     ...attempt,
+    testId: test.id,
     testTitle: test.title,
     exam: test.exam,
     taskNumber: test.taskNumber,
-    groupName: assignment.groupName,
-    assignmentTitle: assignment.title,
     percentage: Math.round((attempt.correct / attempt.total) * 100),
     exercises: test.exercises.map((e) => ({
       ...e,
-      rawAnswer: attempt.answers[e.id] ?? [],
+      rawAnswer: attempt.answers[e.id] ?? (e.type === "multiple" ? [] : ""),
       correct: grade(e, attempt.answers[e.id]),
       correctAnswer: e.key,
       explanation: e.explanation,
@@ -88,11 +112,14 @@ function result(state, attempt) {
 export function execute(state, action, args, actor) {
   const now = new Date().toISOString();
   if (action.startsWith("teacher_")) requireTeacher(actor);
-  const assignmentByToken = () => {
-    const a = state.assignments.find((x) => x.token === args.token);
-    if (!a)
-      throw new AppError("Домашнее задание не найдено. Проверьте ссылку.", 404);
-    return a;
+  const testByToken = () => {
+    const test = state.tests.find(
+      (t) =>
+        t.shareToken === args.token || t.legacyTokens?.includes(args.token),
+    );
+    if (!test || test.status === "draft")
+      throw new AppError("Тест не найден. Проверьте ссылку.", 404);
+    return test;
   };
   const ownAttempt = () => {
     const a = state.attempts.find(
@@ -104,17 +131,18 @@ export function execute(state, action, args, actor) {
   switch (action) {
     case "teacher_overview":
       return {
-        tests: state.tests.map(publicTest),
-        groups: state.groups,
-        assignments: state.assignments.map((a) => ({
-          ...a,
-          test: publicTest(
-            state.tests.find((t) => t.versionId === a.versionId),
-          ),
-          attemptCount: state.attempts.filter(
-            (x) => x.assignmentId === a.id && x.status === "submitted",
-          ).length,
-        })),
+        tests: state.tests
+          .filter(
+            (t) =>
+              t.status === "published" &&
+              !state.tests.some(
+                (newer) =>
+                  newer.id === t.id &&
+                  newer.status === "published" &&
+                  newer.version > t.version,
+              ),
+          )
+          .map((t) => ({ ...publicTest(t), shareToken: t.shareToken })),
         results: state.attempts
           .filter((a) => a.status === "submitted")
           .map((a) => {
@@ -123,54 +151,15 @@ export function execute(state, action, args, actor) {
           }),
       };
     case "teacher_preview": {
-      const t = state.tests.find((t) => t.id === args.testId);
+      const t = state.tests
+        .filter(
+          (t) =>
+            t.id === args.testId &&
+            (!args.versionId || t.versionId === args.versionId),
+        )
+        .sort((a, b) => b.version - a.version)[0];
       if (!t) throw new AppError("Тест не найден.", 404);
       return { ...t, exerciseCount: t.exercises.length };
-    }
-    case "teacher_group": {
-      if (args.id) {
-        const g = state.groups.find((g) => g.id === args.id);
-        if (!g) throw new AppError("Группа не найдена.", 404);
-        if (args.name !== undefined) g.name = cleanName(args.name);
-        if (args.archived !== undefined) g.archived = Boolean(args.archived);
-        return g;
-      }
-      const g = {
-        id: randomUUID(),
-        name: cleanName(args.name),
-        archived: false,
-      };
-      state.groups.push(g);
-      return g;
-    }
-    case "teacher_issue": {
-      const t = state.tests.find(
-        (t) => t.id === args.testId && t.status === "published",
-      );
-      if (!t) throw new AppError("Этот тест пока недоступен.", 404);
-      const g = args.groupId
-        ? state.groups.find((g) => g.id === args.groupId && !g.archived)
-        : null;
-      if (args.groupId && !g) throw new AppError("Группа недоступна.");
-      const a = {
-        id: randomUUID(),
-        token: randomBytes(24).toString("hex"),
-        versionId: t.versionId,
-        groupId: g?.id || null,
-        groupName: g?.name || "Без группы",
-        title: args.title?.trim() || t.title,
-        active: true,
-        createdAt: now,
-      };
-      if (a.title.length > 120) throw new AppError("Название слишком длинное.");
-      state.assignments.unshift(a);
-      return a;
-    }
-    case "teacher_close": {
-      const a = state.assignments.find((a) => a.id === args.assignmentId);
-      if (!a) throw new AppError("Выдача не найдена.", 404);
-      a.active = false;
-      return a;
     }
     case "teacher_result": {
       const a = state.attempts.find(
@@ -179,24 +168,22 @@ export function execute(state, action, args, actor) {
       if (!a) throw new AppError("Результат не найден.", 404);
       return result(state, a);
     }
-    case "get_assignment": {
-      const a = assignmentByToken();
-      const t = state.tests.find((t) => t.versionId === a.versionId);
-      return { ...a, test: publicTest(t) };
+    case "get_test": {
+      return publicTest(testByToken());
     }
     case "start_attempt": {
-      const a = assignmentByToken();
-      if (!a.active) throw new AppError("Приём новых работ завершён.");
-      if (
-        state.attempts.filter(
-          (x) => x.ownerId === actor.id && x.assignmentId === a.id,
-        ).length >= 30
-      )
-        throw new AppError("Достигнут лимит попыток для этой работы.");
+      const t = testByToken();
+      if (t.status !== "published")
+        throw new AppError("Тест больше не доступен для новых попыток.");
+      const previous = state.attempts.filter(
+        (x) => x.ownerId === actor.id && x.versionId === t.versionId,
+      );
+      if (previous.length >= 30)
+        throw new AppError("Достигнут лимит попыток для этого теста.");
       const p = {
         id: randomUUID(),
-        assignmentId: a.id,
-        versionId: a.versionId,
+        testId: t.id,
+        versionId: t.versionId,
         ownerId: actor.id,
         name: cleanName(args.name),
         status: "started",
@@ -205,10 +192,7 @@ export function execute(state, action, args, actor) {
         answers: {},
         correct: 0,
         total: 0,
-        attemptNumber:
-          state.attempts.filter(
-            (x) => x.assignmentId === a.id && x.ownerId === actor.id,
-          ).length + 1,
+        attemptNumber: previous.length + 1,
       };
       state.attempts.push(p);
       return {

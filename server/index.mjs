@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { initialState } from "./demo-content.mjs";
-import { execute, AppError } from "./engine.mjs";
+import { execute, AppError, migrateState } from "./engine.mjs";
 export function createApp({ databasePath = ".local/demo.sqlite" } = {}) {
   if (databasePath.startsWith(".local/"))
     mkdirSync(".local", { recursive: true });
@@ -16,6 +16,12 @@ export function createApp({ databasePath = ".local/demo.sqlite" } = {}) {
     db.prepare("INSERT INTO app_state VALUES (1,?)").run(
       JSON.stringify(initialState()),
     );
+  const saved = JSON.parse(
+    db.prepare("SELECT payload FROM app_state WHERE id=1").get().payload,
+  );
+  db.prepare("UPDATE app_state SET payload=? WHERE id=1").run(
+    JSON.stringify(migrateState(saved)),
+  );
   const server = createServer(async (req, res) => {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.setHeader("Cache-Control", "no-store");

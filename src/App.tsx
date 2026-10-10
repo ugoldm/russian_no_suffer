@@ -11,7 +11,6 @@ import {
   GraduationCap,
   LayoutGrid,
   Leaf,
-  Link2,
   Loader2,
   LogOut,
   Menu,
@@ -19,7 +18,6 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
-  Users,
   X,
   CircleHelp,
   ChevronRight,
@@ -35,14 +33,7 @@ import {
   rpc,
   verify,
 } from "./api";
-import type {
-  Assignment,
-  Attempt,
-  Draft,
-  Exercise,
-  Overview,
-  Test,
-} from "./types";
+import type { Attempt, Draft, Exercise, Overview, Test } from "./types";
 const formatDate = (date: string) =>
   new Intl.DateTimeFormat("ru-RU", {
     day: "numeric",
@@ -50,8 +41,8 @@ const formatDate = (date: string) =>
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(date));
-const homeworkUrl = (token: string) =>
-  `${location.origin}${location.pathname}#/homework/${token}`;
+const testUrl = (token: string) =>
+  `${location.origin}${location.pathname}#/test/${token}`;
 const errorText = (e: unknown) =>
   e instanceof Error ? e.message : "Не удалось выполнить действие.";
 function Brand() {
@@ -177,7 +168,7 @@ export default function App() {
     window.addEventListener("hashchange", handler);
     return () => window.removeEventListener("hashchange", handler);
   }, []);
-  if (route.startsWith("/homework/"))
+  if (route.startsWith("/test/") || route.startsWith("/homework/"))
     return <Student key={route} token={route.split("/")[2]} />;
   return <Teacher />;
 }
@@ -188,19 +179,12 @@ function Teacher() {
   const [tab, setTab] = useState("tests"),
     [exam, setExam] = useState("Все"),
     [search, setSearch] = useState(""),
-    [groupFilter, setGroupFilter] = useState(""),
-    [testFilter, setTestFilter] = useState(""),
-    [assignmentFilter, setAssignmentFilter] = useState("");
-  const [issueTest, setIssueTest] = useState<Test | null>(null),
+    [testFilter, setTestFilter] = useState("");
+  const [shareTest, setShareTest] = useState<Test | null>(null),
     [preview, setPreview] = useState<Test | null>(null),
-    [detail, setDetail] = useState<Attempt | null>(null),
-    [toast, setToast] = useState("");
+    [detail, setDetail] = useState<Attempt | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false),
-    [busy, setBusy] = useState(false),
-    [groupModal, setGroupModal] = useState<{
-      id?: string;
-      name: string;
-    } | null>(null);
+    [busy, setBusy] = useState(false);
   const load = async () => {
     setLoading(true);
     try {
@@ -216,35 +200,15 @@ function Teacher() {
   useEffect(() => {
     void load();
   }, []);
-  useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(""), 4500);
-    return () => clearTimeout(t);
-  }, [toast]);
-  async function copy(token: string) {
-    try {
-      await navigator.clipboard.writeText(homeworkUrl(token));
-      setToast("Ссылка скопирована — отправьте её ученикам.");
-    } catch {
-      setToast("Откройте домашнее задание и скопируйте адрес из браузера.");
-    }
-  }
-  async function closeAssignment(id: string) {
-    setBusy(true);
-    try {
-      await rpc("teacher_close", { assignmentId: id });
-      await load();
-      setToast("Приём новых попыток завершён.");
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
-  }
   async function showPreview(t: Test) {
     setBusy(true);
     try {
-      setPreview(await rpc<Test>("teacher_preview", { testId: t.id }));
+      setPreview(
+        await rpc<Test>("teacher_preview", {
+          testId: t.id,
+          versionId: t.versionId,
+        }),
+      );
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -266,22 +230,12 @@ function Teacher() {
   const results = overview.results.filter(
     (r) =>
       r.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()) &&
-      (!groupFilter || r.groupName === groupFilter) &&
-      (!testFilter || r.testTitle === testFilter) &&
-      (!assignmentFilter || r.assignmentId === assignmentFilter),
+      (!testFilter || r.testId === testFilter),
   );
   const tabs = [
     { id: "tests", label: "Библиотека тестов", icon: BookOpen },
-    { id: "assignments", label: "Домашние задания", icon: FileCheck2 },
     { id: "results", label: "Результаты", icon: LayoutGrid },
-    { id: "groups", label: "Мои группы", icon: Users },
   ];
-  const average = overview.results.length
-    ? Math.round(
-        overview.results.reduce((s, r) => s + r.percentage, 0) /
-          overview.results.length,
-      )
-    : null;
   return (
     <div className="teacher-layout">
       <aside className={`sidebar ${mobileMenu ? "mobile-open" : ""}`}>
@@ -305,20 +259,6 @@ function Teacher() {
             </button>
           ))}
         </nav>
-        <div className="sidebar-note">
-          <span className="small-icon">
-            <Leaf size={19} />
-          </span>
-          <h3>
-            Маленькие шаги.
-            <br />
-            Большой прогресс.
-          </h3>
-          <p>
-            Практика по одному номеру —<br />
-            больше уверенности на экзамене.
-          </p>
-        </div>
         <div className="profile">
           <span className="avatar">П</span>
           <div>
@@ -353,86 +293,9 @@ function Teacher() {
             Кабинет <ChevronRight size={14} />{" "}
             <strong>{tabs.find((t) => t.id === tab)?.label}</strong>
           </span>
-          <span className="topbar-status">
-            <span className="status-dot" />
-            {mode === "demo"
-              ? "Локальная демонстрация"
-              : "Общая база подключена"}
-          </span>
         </header>
         <main className="main-content">
-          <div className="page-intro">
-            <div>
-              <div className="eyebrow">РУССКИЙ ЯЗЫК · ОГЭ И ЕГЭ</div>
-              <h1>
-                {tab === "tests" ? (
-                  <>
-                    Домашние задания,
-                    <br />
-                    <em>без лишних хлопот.</em>
-                  </>
-                ) : tab === "assignments" ? (
-                  "Всё готово к практике."
-                ) : tab === "results" ? (
-                  "Прогресс в деталях."
-                ) : (
-                  "Учиться вместе проще."
-                )}
-              </h1>
-              <p>
-                {tab === "tests"
-                  ? "Выберите тест, поделитесь ссылкой и посмотрите, как справились ученики."
-                  : tab === "assignments"
-                    ? "Отдельная ссылка для каждой группы. Все ответы — в одном месте."
-                    : tab === "results"
-                      ? "Откройте работу, чтобы увидеть ответы ученика и разобрать ошибки."
-                      : "Создайте группы, чтобы выдавать задания и находить результаты."}
-              </p>
-            </div>
-            <span className="intro-decoration" aria-hidden="true">
-              <GraduationCap size={48} />
-              <span className="deco-plus">✦</span>
-            </span>
-          </div>
-          {mode === "demo" && (
-            <div className="demo-banner">
-              <CircleHelp size={18} />
-              <span>
-                <strong>Демонстрационная версия.</strong> Данные сохраняются на
-                этом компьютере. Для работы учеников с разных устройств
-                подключите Supabase.
-              </span>
-            </div>
-          )}
           <ErrorBox message={error} />
-          <div className="stats-grid">
-            <Stat
-              icon={<BookOpen />}
-              value={String(overview.tests.length)}
-              label="Тест готов к практике"
-              color="green"
-            />
-            <Stat
-              icon={<Link2 />}
-              value={String(
-                overview.assignments.filter((a) => a.active).length,
-              )}
-              label="Активных домашних заданий"
-              color="sand"
-            />
-            <Stat
-              icon={<FileCheck2 />}
-              value={String(overview.results.length)}
-              label="Работ выполнено"
-              color="purple"
-            />
-            <Stat
-              icon={<CheckCircle2 />}
-              value={average === null ? "—" : `${average}%`}
-              label="Средний результат"
-              color="blue"
-            />
-          </div>
           {tab === "tests" && (
             <>
               <div className="section-heading">
@@ -443,9 +306,6 @@ function Teacher() {
                   </h2>
                   <p>Каждый тест — практика одного номера экзамена</p>
                 </div>
-                <span className="light-label">
-                  <ShieldCheck size={15} /> Проверка после завершения
-                </span>
               </div>
               <div className="filter-row">
                 <div className="segmented">
@@ -459,9 +319,6 @@ function Teacher() {
                     </button>
                   ))}
                 </div>
-                <span className="muted">
-                  Первый набор · демонстрационные материалы
-                </span>
               </div>
               <div className="test-grid">
                 {overview.tests
@@ -473,7 +330,7 @@ function Teacher() {
                           {t.exam} <span>№ {t.taskNumber}</span>
                         </span>
                         <span className="published">
-                          <span className="status-dot" /> Готов к выдаче
+                          <span className="status-dot" /> Опубликован
                         </span>
                       </div>
                       <div className="test-illustration" aria-hidden="true">
@@ -500,15 +357,30 @@ function Teacher() {
                         </span>
                       </div>
                       <div className="test-card-actions">
-                        <Button onClick={() => setIssueTest(t)}>
-                          Выдать задание <ArrowUpRight size={17} />
+                        <Button onClick={() => setShareTest(t)}>
+                          Поделиться ссылкой <Copy size={17} />
                         </Button>
                         <button
                           className="text-button"
                           disabled={busy}
                           onClick={() => showPreview(t)}
                         >
-                          Посмотреть тест
+                          Тест и ответы
+                        </button>
+                        <button
+                          className="text-button"
+                          onClick={() => {
+                            setTestFilter(t.id);
+                            setSearch("");
+                            setTab("results");
+                          }}
+                        >
+                          Результаты (
+                          {
+                            overview.results.filter((r) => r.testId === t.id)
+                              .length
+                          }
+                          )
                         </button>
                       </div>
                     </article>
@@ -539,90 +411,6 @@ function Teacher() {
                   <span className="light-label">Без ручного конструктора</span>
                 </article>
               </div>
-              <div className="how-it-works">
-                <h3>От теста до результата — три шага</h3>
-                <div>
-                  <span>
-                    <b>1</b> Выберите тест
-                  </span>
-                  <ArrowRight size={17} />
-                  <span>
-                    <b>2</b> Отправьте ссылку группе
-                  </span>
-                  <ArrowRight size={17} />
-                  <span>
-                    <b>3</b> Посмотрите ответы
-                  </span>
-                </div>
-              </div>
-            </>
-          )}
-          {tab === "assignments" && (
-            <>
-              <div className="section-heading">
-                <h2>Выданные работы</h2>
-                <Button kind="secondary" onClick={() => setTab("tests")}>
-                  <Plus size={17} /> Выдать ещё
-                </Button>
-              </div>
-              {overview.assignments.length === 0 ? (
-                <Empty
-                  icon={<Link2 />}
-                  title="Первое домашнее задание ждёт вас"
-                  text="Откройте библиотеку, выберите тест и создайте ссылку для учеников."
-                  action={
-                    <Button onClick={() => setTab("tests")}>
-                      Перейти к тестам <ArrowRight size={16} />
-                    </Button>
-                  }
-                />
-              ) : (
-                <div className="assignments-list">
-                  {overview.assignments.map((a) => (
-                    <article className="assignment-card" key={a.id}>
-                      <div>
-                        <span className="exam-tag">
-                          {a.test.exam} № {a.test.taskNumber}
-                        </span>
-                        <h3>{a.title}</h3>
-                        <p>
-                          {a.groupName} <span>·</span> Выдано{" "}
-                          {formatDate(a.createdAt)} <span>·</span>{" "}
-                          {a.attemptCount} работ
-                        </p>
-                        <a
-                          className="assignment-link"
-                          href={`#/homework/${a.token}`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Открыть как ученик <ArrowUpRight size={14} />
-                        </a>
-                      </div>
-                      <div className="assignment-actions">
-                        <span
-                          className={`published ${a.active ? "" : "closed"}`}
-                        >
-                          <span className="status-dot" />
-                          {a.active ? "Приём открыт" : "Приём завершён"}
-                        </span>
-                        <Button kind="secondary" onClick={() => copy(a.token)}>
-                          <Copy size={16} /> Скопировать ссылку
-                        </Button>
-                        {a.active && (
-                          <button
-                            className="text-button"
-                            disabled={busy}
-                            onClick={() => closeAssignment(a.id)}
-                          >
-                            Завершить приём
-                          </button>
-                        )}
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
             </>
           )}
           {tab === "results" && (
@@ -648,38 +436,21 @@ function Teacher() {
                   />
                 </label>
                 <select
-                  aria-label="Фильтр по группе"
-                  value={groupFilter}
-                  onChange={(e) => setGroupFilter(e.target.value)}
-                >
-                  <option value="">Все группы</option>
-                  {Array.from(
-                    new Set(overview.results.map((r) => r.groupName)),
-                  ).map((g) => (
-                    <option key={g}>{g}</option>
-                  ))}
-                </select>
-                <select
                   aria-label="Фильтр по тесту"
                   value={testFilter}
                   onChange={(e) => setTestFilter(e.target.value)}
                 >
                   <option value="">Все тесты</option>
                   {Array.from(
-                    new Set(overview.results.map((r) => r.testTitle)),
-                  ).map((t) => (
-                    <option key={t}>{t}</option>
-                  ))}
-                </select>
-                <select
-                  aria-label="Фильтр по выдаче"
-                  value={assignmentFilter}
-                  onChange={(e) => setAssignmentFilter(e.target.value)}
-                >
-                  <option value="">Все выдачи</option>
-                  {overview.assignments.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.title} · {a.groupName}
+                    new Map([
+                      ...overview.results.map(
+                        (r) => [r.testId, r.testTitle] as const,
+                      ),
+                      ...overview.tests.map((t) => [t.id, t.title] as const),
+                    ]),
+                  ).map(([id, title]) => (
+                    <option key={id} value={id}>
+                      {title}
                     </option>
                   ))}
                 </select>
@@ -694,7 +465,7 @@ function Teacher() {
                   }
                   text={
                     overview.results.length
-                      ? "Попробуйте другое имя или группу."
+                      ? "Попробуйте другое имя или тест."
                       : "Как только ученик отправит работу, вы увидите его ответы и результат."
                   }
                 />
@@ -704,7 +475,7 @@ function Teacher() {
                     <thead>
                       <tr>
                         <th>Ученик</th>
-                        <th>Тест и группа</th>
+                        <th>Тест</th>
                         <th>Результат</th>
                         <th>Отправлено</th>
                         <th />
@@ -720,7 +491,7 @@ function Teacher() {
                           <td>
                             {r.testTitle}
                             <small>
-                              {r.groupName} · {r.exam} № {r.taskNumber}
+                              {r.exam} № {r.taskNumber}
                             </small>
                           </td>
                           <td>
@@ -751,84 +522,10 @@ function Teacher() {
               )}
             </>
           )}
-          {tab === "groups" && (
-            <>
-              <div className="section-heading">
-                <h2>Учебные группы</h2>
-                <Button onClick={() => setGroupModal({ name: "" })}>
-                  <Plus size={17} /> Добавить группу
-                </Button>
-              </div>
-              {overview.groups.length === 0 ? (
-                <Empty
-                  icon={<Users />}
-                  title="Добавьте свою первую группу"
-                  text="Например, «ЕГЭ · вторник» или «ОГЭ · 9 класс». Списки учеников заранее не нужны."
-                />
-              ) : (
-                <div className="group-grid">
-                  {overview.groups.map((g) => (
-                    <article className="group-card" key={g.id}>
-                      <span className="group-icon">
-                        <Users size={23} />
-                      </span>
-                      <h3>{g.name}</h3>
-                      <p>
-                        {g.archived
-                          ? "В архиве"
-                          : `${overview.assignments.filter((a) => a.groupId === g.id && a.active).length} активных заданий`}
-                      </p>
-                      <button
-                        className="text-button"
-                        onClick={() =>
-                          setGroupModal({ id: g.id, name: g.name })
-                        }
-                      >
-                        Переименовать
-                      </button>
-                      <button
-                        className="text-button"
-                        onClick={async () => {
-                          try {
-                            await rpc("teacher_group", {
-                              id: g.id,
-                              archived: !g.archived,
-                            });
-                            await load();
-                          } catch (e) {
-                            setError(errorText(e));
-                          }
-                        }}
-                      >
-                        {g.archived ? "Вернуть из архива" : "В архив"}
-                      </button>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-          <footer className="page-footer">
-            <span>Русский без страданий</span>
-            <span>Больше практики. Меньше рутины.</span>
-          </footer>
         </main>
       </div>
-      {toast && (
-        <div className="toast" role="status">
-          <CheckCircle2 size={19} />
-          {toast}
-        </div>
-      )}
-      {issueTest && (
-        <IssueModal
-          test={issueTest}
-          groups={overview.groups.filter((g) => !g.archived)}
-          onClose={() => setIssueTest(null)}
-          onIssued={async () => {
-            await load();
-          }}
-        />
+      {shareTest && (
+        <ShareModal test={shareTest} onClose={() => setShareTest(null)} />
       )}
       {preview && (
         <Modal title="Предпросмотр теста" onClose={() => setPreview(null)}>
@@ -843,9 +540,7 @@ function Teacher() {
       {detail && (
         <Modal title={`Работа: ${detail.name}`} onClose={() => setDetail(null)}>
           <div className="detail-meta">
-            <span>
-              {detail.groupName} · {detail.testTitle}
-            </span>
+            <span>{detail.testTitle}</span>
             <strong>
               {detail.correct} из {detail.total} · {detail.percentage}%
             </strong>
@@ -853,34 +548,6 @@ function Teacher() {
           <Review exercises={detail.exercises} />
         </Modal>
       )}
-      {groupModal && (
-        <GroupModal
-          group={groupModal}
-          onClose={() => setGroupModal(null)}
-          onSaved={load}
-        />
-      )}
-    </div>
-  );
-}
-function Stat({
-  icon,
-  value,
-  label,
-  color,
-}: {
-  icon: ReactNode;
-  value: string;
-  label: string;
-  color: string;
-}) {
-  return (
-    <div className="stat-card">
-      <span className={`stat-icon ${color}`}>{icon}</span>
-      <div>
-        <strong>{value}</strong>
-        <span>{label}</span>
-      </div>
     </div>
   );
 }
@@ -947,9 +614,7 @@ function TeacherLogin({
           <br />
           <em>с простого шага.</em>
         </h1>
-        <p>
-          Тесты по номерам, домашние задания по ссылке и ответы каждого ученика.
-        </p>
+        <p>Тесты по номерам, прямые ссылки и ответы каждого ученика.</p>
         {loading ? (
           <div className="loading">
             <Loader2 className="spin" /> Проверяем доступ…
@@ -1033,197 +698,58 @@ function TeacherLogin({
           </form>
         )}
         <span className="login-foot">
-          Ученикам вход в кабинет не нужен — только ссылка на задание.
+          Ученикам вход в кабинет не нужен — только ссылка на тест.
         </span>
       </main>
       <footer>Русский без страданий · учиться можно спокойно</footer>
     </div>
   );
 }
-function GroupModal({
-  group,
-  onClose,
-  onSaved,
-}: {
-  group: { id?: string; name: string };
-  onClose: () => void;
-  onSaved: () => Promise<void>;
-}) {
-  const [name, setName] = useState(group.name),
-    [busy, setBusy] = useState(false),
+function ShareModal({ test, onClose }: { test: Test; onClose: () => void }) {
+  const [copied, setCopied] = useState(false),
     [error, setError] = useState("");
   return (
-    <Modal
-      title={group.id ? "Название группы" : "Новая группа"}
-      onClose={onClose}
-    >
-      <form
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setBusy(true);
-          try {
-            await rpc("teacher_group", { ...group, name });
-            await onSaved();
-            onClose();
-          } catch (e) {
-            setError(errorText(e));
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <label className="field-label">
-          Название
-          <input
-            autoFocus
-            required
-            maxLength={80}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="ЕГЭ · вторник"
-          />
-        </label>
-        <ErrorBox message={error} />
-        <Button type="submit" disabled={busy}>
-          Сохранить группу
-        </Button>
-      </form>
-    </Modal>
-  );
-}
-function IssueModal({
-  test,
-  groups,
-  onClose,
-  onIssued,
-}: {
-  test: Test;
-  groups: { id: string; name: string }[];
-  onClose: () => void;
-  onIssued: () => Promise<void>;
-}) {
-  const [groupId, setGroupId] = useState(""),
-    [title, setTitle] = useState(test.title),
-    [assignment, setAssignment] = useState<Assignment | null>(null),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    [copied, setCopied] = useState(false);
-  return (
-    <Modal
-      title={
-        assignment ? "Задание готово к отправке" : "Выдать домашнее задание"
-      }
-      onClose={onClose}
-    >
-      {assignment ? (
-        <>
-          <div className="success-mark">
-            <Check size={28} />
-          </div>
-          <p>Отправьте ссылку ученикам. Им понадобится только имя.</p>
-          <label className="field-label">
-            Ссылка на работу
-            <input
-              readOnly
-              value={homeworkUrl(assignment.token)}
-              onFocus={(e) => e.target.select()}
-            />
-          </label>
-          <div className="button-row">
-            <Button
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(
-                    homeworkUrl(assignment.token),
-                  );
-                  setCopied(true);
-                } catch {
-                  setError("Выделите и скопируйте ссылку из поля выше.");
-                }
-              }}
-            >
-              <Copy size={16} />
-              {copied ? "Скопировано" : "Скопировать"}
-            </Button>
-            <a
-              className="button secondary"
-              href={`#/homework/${assignment.token}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Открыть тест <ArrowUpRight size={17} />
-            </a>
-          </div>
-          {mode === "demo" && (
-            <p className="helper">
-              Локальная ссылка работает только на этом компьютере. Для отправки
-              реальным ученикам сначала подключите Supabase и опубликуйте сайт.
-            </p>
-          )}
-          <ErrorBox message={error} />
-        </>
-      ) : (
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            setBusy(true);
-            setError("");
+    <Modal title="Поделиться тестом" onClose={onClose}>
+      <h3>{test.title}</h3>
+      <p>Отправьте ссылку ученикам. Им понадобится только имя.</p>
+      <label className="field-label">
+        Ссылка на тест
+        <input
+          readOnly
+          value={testUrl(test.shareToken)}
+          onFocus={(e) => e.target.select()}
+        />
+      </label>
+      <div className="button-row">
+        <Button
+          onClick={async () => {
             try {
-              const a = await rpc<Assignment>("teacher_issue", {
-                testId: test.id,
-                groupId: groupId || null,
-                title,
-              });
-              setAssignment(a);
-              await onIssued();
-            } catch (e) {
-              setError(errorText(e));
-            } finally {
-              setBusy(false);
+              await navigator.clipboard.writeText(testUrl(test.shareToken));
+              setCopied(true);
+              setError("");
+            } catch {
+              setError("Выделите и скопируйте ссылку из поля выше.");
             }
           }}
         >
-          <span className="exam-tag">
-            {test.exam} № {test.taskNumber} · {test.exerciseCount} упражнений
-          </span>
-          <label className="field-label">
-            Название домашнего задания
-            <input
-              required
-              maxLength={120}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </label>
-          <label className="field-label">
-            Для какой группы
-            <select
-              value={groupId}
-              onChange={(e) => setGroupId(e.target.value)}
-            >
-              <option value="">Без группы</option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <p className="helper">
-            Версия теста фиксируется при выдаче. Обновления материалов не
-            изменят эту работу.
-          </p>
-          <ErrorBox message={error} />
-          <Button type="submit" disabled={busy}>
-            {busy ? (
-              <Loader2 className="spin" size={17} />
-            ) : (
-              <Link2 size={17} />
-            )}
-            Создать ссылку
-          </Button>
-        </form>
+          <Copy size={16} />
+          {copied ? "Скопировано" : "Скопировать ссылку"}
+        </Button>
+        <a
+          className="button secondary"
+          href={`#/test/${test.shareToken}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Открыть тест <ArrowUpRight size={17} />
+        </a>
+      </div>
+      {mode === "demo" && (
+        <p className="helper">
+          Локальная ссылка работает только на этом компьютере.
+        </p>
       )}
+      <ErrorBox message={error} />
     </Modal>
   );
 }
@@ -1295,7 +821,7 @@ function Review({
   );
 }
 function Student({ token }: { token: string }) {
-  const [assignment, setAssignment] = useState<Assignment | null>(null),
+  const [test, setTest] = useState<Test | null>(null),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true),
     [name, setName] = useState(""),
@@ -1318,11 +844,11 @@ function Student({ token }: { token: string }) {
     setError("");
     setRecoveryFailed(false);
     try {
-      const a = await rpc<Assignment>("get_assignment", {
+      const a = await rpc<Test>("get_test", {
         token,
         captchaToken: captcha,
       });
-      setAssignment(a);
+      setTest(a);
       let saved;
       try {
         const s = localStorage.getItem(storageKey);
@@ -1426,8 +952,7 @@ function Student({ token }: { token: string }) {
       setBusy(false);
     }
   }
-  const test = assignment?.test,
-    exercise = test?.exercises[draft?.position || 0];
+  const exercise = test?.exercises[draft?.position || 0];
   const answered =
     draft && test
       ? test.exercises.filter((e) => {
@@ -1463,16 +988,16 @@ function Student({ token }: { token: string }) {
       <main className={`student-main ${result ? "wide" : ""}`}>
         {!ready ? (
           <div className="student-intro">
-            <div className="eyebrow">ДОМАШНЕЕ ЗАДАНИЕ</div>
+            <div className="eyebrow">ТЕСТ</div>
             <h1>Сначала маленькая проверка</h1>
             <p>Подтвердите, что вы человек, чтобы открыть задание.</p>
             <Captcha onToken={onCaptcha} />
           </div>
         ) : loading ? (
           <div className="loading">
-            <Loader2 className="spin" /> Открываем задание…
+            <Loader2 className="spin" /> Открываем тест…
           </div>
-        ) : !assignment ? (
+        ) : !test ? (
           <div className="student-intro">
             <h1>Не получилось открыть работу</h1>
             <ErrorBox message={error} />
@@ -1509,7 +1034,7 @@ function Student({ token }: { token: string }) {
                   : "Результат сохранён и доступен преподавателю."}
               </div>
               <p className="helper">
-                Это результат домашнего задания, а не экзаменационный балл.
+                Это результат теста, а не экзаменационный балл.
               </p>
               <Button
                 kind="secondary"
@@ -1537,7 +1062,7 @@ function Student({ token }: { token: string }) {
             <div className="student-illustration" aria-hidden="true">
               <GraduationCap size={52} />
             </div>
-            <h1>{assignment.title}</h1>
+            <h1>{test.title}</h1>
             <p className="intro-description">{test?.description}</p>
             <div className="student-test-facts">
               <span>
@@ -1547,12 +1072,8 @@ function Student({ token }: { token: string }) {
               <span>
                 <Clock3 size={17} />≈ 5–10 минут
               </span>
-              <span>
-                <Users size={17} />
-                {assignment.groupName}
-              </span>
             </div>
-            {!assignment.active ? (
+            {test.status !== "published" ? (
               <div className="error-box">
                 Приём новых работ завершён. Если вы уже начали работу в этом
                 браузере, она восстановится автоматически.
@@ -1603,7 +1124,7 @@ function Student({ token }: { token: string }) {
                 <span className="exam-tag">
                   {test?.exam} № {test?.taskNumber}
                 </span>
-                <h2>{assignment.title}</h2>
+                <h2>{test.title}</h2>
               </div>
               <span className="student-name">{draft.name}</span>
             </div>
@@ -1736,7 +1257,7 @@ function Student({ token }: { token: string }) {
             </p>
           </>
         )}
-        {assignment && !draft && (
+        {test && !draft && (
           <button
             className="text-button another-student"
             onClick={async () => {
@@ -1758,7 +1279,7 @@ function Student({ token }: { token: string }) {
                 if (captchaKey) {
                   setReady(false);
                   setCaptcha("");
-                  setAssignment(null);
+                  setTest(null);
                 } else {
                   await load();
                 }

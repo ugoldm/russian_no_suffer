@@ -39,6 +39,7 @@ try {
   const overview = await call("teacher_overview");
   assert.equal(overview.tests.length, 1);
   assert.ok(!JSON.stringify(overview.tests).includes("explanation"));
+  // Seed a saved result via the old API, then migrate in place.
   const g = await call("teacher_group", { name: "Проверочная группа" });
   const a = await call("teacher_issue", {
     testId: "ege-4-demo",
@@ -97,16 +98,102 @@ try {
     "SQL Ученик",
   );
   assert.equal((await call("teacher_overview")).results.length, 1);
-  await call("teacher_close", { assignmentId: a.id });
+  await db.exec("reset role");
+  await db.exec(
+    readFileSync("supabase/migrations/003_direct_test_links.sql", "utf8"),
+  );
+  await as(teacher, false);
+  const upgraded = await call("teacher_overview");
+  assert.deepEqual(Object.keys(upgraded).sort(), ["results", "tests"]);
+  assert.equal(upgraded.results[0].id, p.id);
+  assert.equal(upgraded.results[0].testId, "ege-4-demo");
+  assert.equal(upgraded.results[0].assignmentId, undefined);
+  assert.equal(upgraded.results[0].groupName, undefined);
+  assert.deepEqual(
+    (await call("teacher_result", { attemptId: p.id })).exercises,
+    result.exercises,
+  );
+  const direct = upgraded.tests[0];
+  assert.equal(
+    (
+      await call("teacher_preview", {
+        testId: direct.id,
+        versionId: direct.versionId,
+      })
+    ).versionId,
+    direct.versionId,
+  );
+  await assert.rejects(
+    () => call("teacher_preview", { testId: direct.id, versionId: "missing" }),
+    /не найден/,
+  );
+  assert.equal(
+    (await call("teacher_overview")).tests[0].shareToken,
+    direct.shareToken,
+  );
+  await assert.rejects(
+    () => call("teacher_issue", { testId: direct.id }),
+    /does not exist/,
+  );
   await db.exec("reset role");
   await as(student);
+  assert.equal(
+    (await call("get_test", { token: a.token })).versionId,
+    direct.versionId,
+  );
+  const directTest = await call("get_test", { token: direct.shareToken });
+  assert.equal(directTest.exercises[0].key, undefined);
+  assert.ok(!JSON.stringify(directTest).includes("explanation"));
+  const next = await call("start_attempt", {
+    token: direct.shareToken,
+    name: "SQL Ученик",
+  });
+  assert.equal(
+    (await call("submit_attempt", { attemptId: next.id, answers: {} }))
+      .attemptNumber,
+    2,
+  );
+  const started = await call("start_attempt", {
+    token: direct.shareToken,
+    name: "SQL Ученик",
+  });
   await assert.rejects(
-    () => call("start_attempt", { token: a.token, name: "Ученик" }),
-    /завершён/,
+    () => call("get_test", { token: "invalid" }),
+    /не найден/,
+  );
+  await db.exec("reset role");
+  await db.exec(
+    `update private.tests set data=jsonb_set(data,'{status}','"archived"') where version_id='ege-4-demo-v1'`,
+  );
+  await as(student);
+  await assert.rejects(
+    () => call("start_attempt", { token: direct.shareToken, name: "Ученик" }),
+    /новых попыток/,
+  );
+  assert.equal(
+    (await call("submit_attempt", { attemptId: started.id, answers: {} }))
+      .percentage,
+    0,
+  );
+  await db.exec("reset role");
+  await db.exec(
+    `update private.tests set data=jsonb_set(data,'{status}','"published"') where version_id='ege-4-demo-v1'`,
   );
   await db.exec("reset role");
   await as(other, false);
   await assert.rejects(() => call("teacher_overview"), /преподавателя/);
+  await assert.rejects(
+    () => call("get_attempt", { attemptId: p.id }),
+    /недоступна/,
+  );
+  await assert.rejects(
+    () => call("submit_attempt", { attemptId: p.id, answers: {} }),
+    /недоступна/,
+  );
+  await assert.rejects(
+    () => db.query("select * from private.tests"),
+    /permission denied/,
+  );
   await db.exec("reset role");
   const textExercise = {
     type: "text",
@@ -130,10 +217,26 @@ try {
       ),
     /неизменяема/,
   );
+  assert.equal(
+    (
+      await db.query(
+        "select to_regclass('private.groups') g,to_regclass('private.assignments') a",
+      )
+    ).rows[0].g,
+    null,
+  );
+  assert.equal(
+    (await db.query("select to_regclass('private.assignments') a")).rows[0].a,
+    null,
+  );
   await db.exec("set role anon");
   await assert.rejects(() => call("teacher_overview"), /permission denied/);
+  await assert.rejects(
+    () => call("get_test", { token: direct.shareToken }),
+    /permission denied/,
+  );
   console.log(
-    "Supabase migration verified: grading, RLS boundary, roles, idempotency, closing, immutable versions.",
+    "Supabase migration verified: grading, RLS boundary, roles, idempotency, direct links, legacy upgrade, immutable versions.",
   );
 } finally {
   await db.close();

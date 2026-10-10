@@ -26,12 +26,10 @@ test("HTTP API persists records across restart and isolates student sessions", a
     assert.equal((await call("intruder", "teacher_overview")).status, 403);
     await call("teacher", "demo_login");
     const overview = (await call("teacher", "teacher_overview")).data;
-    const a = (
-      await call("teacher", "teacher_issue", { testId: overview.tests[0].id })
-    ).data;
+    const a = overview.tests[0];
     const p = (
       await call("student", "start_attempt", {
-        token: a.token,
+        token: a.shareToken,
         name: "API Ученик",
       })
     ).data;

@@ -1,35 +1,25 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { initialState } from "../server/demo-content.mjs";
-import { execute, grade } from "../server/engine.mjs";
+import { execute, grade, migrateState } from "../server/engine.mjs";
 const teacher = { id: "teacher", teacher: true },
   student = { id: "student", teacher: false };
 function setup() {
   const s = initialState();
-  const assignment = execute(
-    s,
-    "teacher_issue",
-    { testId: s.tests[0].id },
-    teacher,
-  );
+  const test = s.tests[0];
   const p = execute(
     s,
     "start_attempt",
-    { token: assignment.token, name: "Тестовый ученик" },
+    { token: test.shareToken, name: "Тестовый ученик" },
     student,
   );
-  return { s, assignment, p };
+  return { s, test, p };
 }
 test("student conditions contain no keys or explanations, teacher access rejected", () => {
-  const { s, assignment } = setup();
-  const data = execute(
-    s,
-    "get_assignment",
-    { token: assignment.token },
-    student,
-  );
+  const { s, test } = setup();
+  const data = execute(s, "get_test", { token: test.shareToken }, student);
   assert.ok(!JSON.stringify(data).includes("explanation"));
-  assert.ok(data.test.exercises.every((e) => !("key" in e)));
+  assert.ok(data.exercises.every((e) => !("key" in e)));
   assert.throws(
     () => execute(s, "teacher_overview", {}, student),
     /преподавателя/,
@@ -90,18 +80,18 @@ test("foreign attempts and injected exercise IDs are rejected without committing
   );
   assert.equal(s.attempts[0].status, "started");
 });
-test("closed assignments prevent starting but allow submitting an existing attempt", () => {
-  const { s, p, assignment } = setup();
-  execute(s, "teacher_close", { assignmentId: assignment.id }, teacher);
+test("archived tests prevent starting but allow submitting an existing attempt", () => {
+  const { s, p, test } = setup();
+  test.status = "archived";
   assert.throws(
     () =>
       execute(
         s,
         "start_attempt",
-        { token: assignment.token, name: "Ученик" },
+        { token: test.shareToken, name: "Ученик" },
         student,
       ),
-    /завершён/,
+    /новых попыток/,
   );
   assert.equal(
     execute(s, "submit_attempt", { attemptId: p.id, answers: {} }, student)
@@ -110,18 +100,18 @@ test("closed assignments prevent starting but allow submitting an existing attem
   );
 });
 test("repeats are separate and matching names do not identify owners", () => {
-  const { s, p, assignment } = setup();
+  const { s, p, test } = setup();
   execute(s, "submit_attempt", { attemptId: p.id, answers: {} }, student);
   const p2 = execute(
     s,
     "start_attempt",
-    { token: assignment.token, name: "Тестовый ученик" },
+    { token: test.shareToken, name: "Тестовый ученик" },
     student,
   );
   const p3 = execute(
     s,
     "start_attempt",
-    { token: assignment.token, name: "Тестовый ученик" },
+    { token: test.shareToken, name: "Тестовый ученик" },
     { id: "other" },
   );
   assert.notEqual(p.id, p2.id);
@@ -137,4 +127,81 @@ test("text normalizes only configured rules, preserves ё and spaces", () => {
   assert.equal(grade(e, " ЁЛКА "), true);
   assert.equal(grade(e, "елка"), false);
   assert.equal(grade(e, "ё лка"), false);
+});
+
+test("test links are stable, version-specific, and sharing creates no records", () => {
+  const { s, test: first, p } = setup();
+  const second = {
+    ...structuredClone(first),
+    versionId: "new-version",
+    version: 2,
+    shareToken: "new-token",
+  };
+  second.exercises[0].key = ["3"];
+  s.tests.push(second);
+  const overview = execute(s, "teacher_overview", {}, teacher);
+  assert.deepEqual(Object.keys(overview).sort(), ["results", "tests"]);
+  assert.equal(overview.tests.length, 1);
+  assert.equal(overview.tests[0].shareToken, "new-token");
+  assert.equal(
+    execute(s, "get_test", { token: first.shareToken }, student).versionId,
+    first.versionId,
+  );
+  assert.throws(
+    () => execute(s, "get_test", { token: "missing" }, student),
+    /не найден/,
+  );
+  assert.throws(() => execute(s, "teacher_issue", {}, teacher), /Неизвестное/);
+  const r = execute(
+    s,
+    "submit_attempt",
+    { attemptId: p.id, answers: { "stress-1": first.exercises[0].key } },
+    student,
+  );
+  assert.equal(r.correct, 1);
+  assert.equal(r.versionId, first.versionId);
+  assert.equal(r.testId, first.id);
+});
+test("legacy local data upgrades without losing answers or active links", () => {
+  const s = initialState();
+  delete s.tests[0].shareToken;
+  s.groups = [{ id: "old-group", name: "Старая группа" }];
+  s.assignments = [
+    {
+      id: "old-link",
+      token: "old-token",
+      versionId: s.tests[0].versionId,
+      active: true,
+    },
+  ];
+  s.attempts = [
+    {
+      id: "old-attempt",
+      assignmentId: "old-link",
+      versionId: s.tests[0].versionId,
+      ownerId: student.id,
+      startedAt: "2026-10-10",
+      status: "submitted",
+      name: "Ученик",
+      attemptNumber: 1,
+      answers: {},
+      correct: 0,
+      total: 6,
+    },
+  ];
+  migrateState(s);
+  assert.equal(s.groups, undefined);
+  assert.equal(s.assignments, undefined);
+  assert.equal(s.attempts[0].assignmentId, undefined);
+  assert.equal(
+    execute(s, "get_test", { token: "old-token" }, student).id,
+    s.tests[0].id,
+  );
+  assert.equal(
+    execute(s, "get_attempt", { attemptId: "old-attempt" }, student).percentage,
+    0,
+  );
+  const token = s.tests[0].shareToken;
+  migrateState(s);
+  assert.equal(s.tests[0].shareToken, token);
 });

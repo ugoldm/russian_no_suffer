@@ -16,6 +16,7 @@ export interface Exercise {
 export interface Test {
   id: string;
   versionId: string;
+  shareToken: string;
   exam: string;
   year: string;
   taskNumber: number;
@@ -29,29 +30,12 @@ export interface Test {
   exerciseCount: number;
   exercises: Exercise[];
 }
-export interface Group {
-  id: string;
-  name: string;
-  archived: boolean;
-}
-export interface Assignment {
-  id: string;
-  token: string;
-  versionId: string;
-  groupId: string | null;
-  groupName: string;
-  title: string;
-  active: boolean;
-  createdAt: string;
-  test: Test;
-  attemptCount: number;
-}
 export interface Attempt {
   id: string;
   name: string;
   versionId: string;
   status: string;
-  assignmentId: string;
+  testId: string;
   attemptNumber: number;
   correct: number;
   total: number;
@@ -60,14 +44,10 @@ export interface Attempt {
   testTitle: string;
   exam: string;
   taskNumber: number;
-  groupName: string;
-  assignmentTitle: string;
   exercises: Exercise[];
 }
 export interface Overview {
   tests: Test[];
-  groups: Group[];
-  assignments: Assignment[];
   results: Attempt[];
 }
 export interface Draft {
