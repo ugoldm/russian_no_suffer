@@ -286,14 +286,6 @@ button {
   color: #526659;
 }
 
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #759269;
-  display: inline-block;
-  flex-shrink: 0;
-}
 .main-content {
   padding: 38px 45px 20px;
   max-width: 1390px;
@@ -390,12 +382,6 @@ button {
   grid-column: span 2;
   max-width: 590px;
 }
-.test-card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
 .exam-tag {
   display: inline-flex;
   align-items: center;
@@ -410,13 +396,6 @@ button {
 .exam-tag span {
   color: #91a080;
   font-weight: 400;
-}
-.published {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 9px;
-  color: #829472;
 }
 .test-illustration {
   height: 124px;
@@ -475,19 +454,8 @@ button {
   transform: rotate(18deg);
   font-weight: 400;
 }
-.test-meta {
-  font-size: 8px;
-  letter-spacing: 1.4px;
-  color: #97a589;
-  margin-bottom: 9px;
-}
 .test-card h3 {
   font-size: 22px;
-}
-.test-card > p {
-  color: #85907e;
-  font-size: 11px;
-  margin-top: 10px;
 }
 .test-facts {
   display: flex;
@@ -635,12 +603,6 @@ button {
   gap: 10px;
 }
 
-.published.closed {
-  color: #a2a697;
-}
-.published.closed .status-dot {
-  background: #aaa;
-}
 .empty-state {
   text-align: center;
   padding: 50px 30px;
@@ -784,6 +746,11 @@ td small {
   color: #6d8b5c;
   font-weight: 500;
 }
+.review-item.preview .review-top > span {
+  font-size: 16px;
+  font-weight: 600;
+  color: #526659;
+}
 .review-item.incorrect .review-top strong {
   color: #b77c5a;
 }
@@ -797,7 +764,7 @@ td small {
 }
 .preview-options {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 12px;
   font-size: 13px;
   margin: 12px 0;
@@ -1247,10 +1214,6 @@ td small {
   .test-card {
     grid-column: span 1;
   }
-  .test-card-top {
-    flex-wrap: wrap;
-    gap: 10px;
-  }
   .test-card-actions {
     flex-direction: column;
     align-items: stretch;
@@ -1338,17 +1301,11 @@ td small {
     max-width: none;
     grid-column: span 1;
   }
-  .test-card-top {
-    flex-wrap: nowrap;
-  }
   .test-illustration {
     height: 135px;
   }
   .test-card h3 {
     font-size: 23px;
-  }
-  .test-card > p {
-    font-size: 12px;
   }
   .test-card-actions {
     flex-direction: row;
@@ -1535,16 +1492,10 @@ td small {
   flex: 1;
   font-size: 11px;
 }
-.test-card > p {
-  min-height: 55px;
-}
 .nav-item:not(.active) {
   color: #68756a;
 }
 
-.test-meta {
-  font-size: 9px;
-}
 .test-facts {
   font-size: 11px;
 }
@@ -1574,9 +1525,6 @@ td small {
 
   .light-label {
     font-size: 10px;
-  }
-  .test-card > p {
-    min-height: 0;
   }
 }
 

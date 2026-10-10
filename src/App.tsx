@@ -34,6 +34,13 @@ import {
   verify,
 } from "./api";
 import type { Attempt, Draft, Exercise, Overview, Test } from "./types";
+// Omit the paper answer-sheet instruction in every web view, including history.
+const webPrompt = (text: string | undefined) =>
+  text?.replaceAll("Запишите номера ответов.", "").trim();
+const testTitle = (test: Pick<Test, "exam" | "taskNumber">) =>
+  `${test.exam}. Задание № ${test.taskNumber}`;
+const estimatedDuration = (test: Pick<Test, "exam" | "taskNumber">) =>
+  test.exam === "ЕГЭ" && test.taskNumber === 9 ? "20–30 минут" : "5–10 минут";
 const formatDate = (date: string) =>
   new Intl.DateTimeFormat("ru-RU", {
     day: "numeric",
@@ -234,6 +241,14 @@ function Teacher() {
   }
   if (!overview)
     return <TeacherLogin loading={loading} error={error} onSuccess={load} />;
+  const tests = overview.tests
+    .filter((t) => exam === "Все" || t.exam === exam)
+    .sort((a, b) => {
+      const examOrder = (value: string) => (value === "ЕГЭ" ? 0 : 1);
+      return (
+        examOrder(a.exam) - examOrder(b.exam) || a.taskNumber - b.taskNumber
+      );
+    });
   const results = overview.results.filter(
     (r) =>
       r.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()) &&
@@ -328,72 +343,57 @@ function Teacher() {
                 </div>
               </div>
               <div className="test-grid">
-                {overview.tests
-                  .filter((t) => exam === "Все" || t.exam === exam)
-                  .map((t) => (
-                    <article key={t.id} className="test-card">
-                      <div className="test-card-top">
-                        <span className="exam-tag">
-                          {t.exam} <span>№ {t.taskNumber}</span>
-                        </span>
-                        <span className="published">
-                          <span className="status-dot" /> Опубликован
-                        </span>
+                {tests.map((t) => (
+                  <article key={t.id} className="test-card">
+                    <div className="test-illustration" aria-hidden="true">
+                      <span>А</span>
+                      <span className="stress-mark">́</span>
+                      <div className="illustration-check">
+                        <Check size={17} />
                       </div>
-                      <div className="test-illustration" aria-hidden="true">
-                        <span>А</span>
-                        <span className="stress-mark">́</span>
-                        <div className="illustration-check">
-                          <Check size={17} />
-                        </div>
-                        <i>а</i>
-                        <b>я</b>
-                      </div>
-                      <div className="test-meta">
-                        {t.subtitle.toUpperCase()}
-                      </div>
-                      <h3>{t.title}</h3>
-                      <p>{t.description}</p>
-                      <div className="test-facts">
-                        <span>
-                          <FileCheck2 size={15} />
-                          {t.exerciseCount} упражнений
-                        </span>
-                        <span>
-                          <Clock3 size={15} />≈ 5–10 минут
-                        </span>
-                      </div>
-                      <div className="test-card-actions">
-                        <Button onClick={() => setShareTest(t)}>
-                          Поделиться ссылкой <Copy size={17} />
-                        </Button>
-                        <button
-                          className="text-button"
-                          disabled={busy}
-                          onClick={() => showPreview(t)}
-                        >
-                          Тест и ответы
-                        </button>
-                        <button
-                          className="text-button"
-                          onClick={() => {
-                            setTestFilter(t.id);
-                            setSearch("");
-                            setTab("results");
-                          }}
-                        >
-                          Результаты (
-                          {
-                            overview.results.filter((r) => r.testId === t.id)
-                              .length
-                          }
-                          )
-                        </button>
-                      </div>
-                    </article>
-                  ))}
-                {overview.tests.filter((t) => exam === "Все" || t.exam === exam)
-                  .length === 0 && (
+                      <i>а</i>
+                      <b>я</b>
+                    </div>
+                    <h3>{testTitle(t)}</h3>
+                    <div className="test-facts">
+                      <span>
+                        <FileCheck2 size={15} />
+                        {t.exerciseCount} упражнений
+                      </span>
+                      <span>
+                        <Clock3 size={15} />≈ {estimatedDuration(t)}
+                      </span>
+                    </div>
+                    <div className="test-card-actions">
+                      <Button onClick={() => setShareTest(t)}>
+                        Поделиться ссылкой <Copy size={17} />
+                      </Button>
+                      <button
+                        className="text-button"
+                        disabled={busy}
+                        onClick={() => showPreview(t)}
+                      >
+                        Тест и ответы
+                      </button>
+                      <button
+                        className="text-button"
+                        onClick={() => {
+                          setTestFilter(t.id);
+                          setSearch("");
+                          setTab("results");
+                        }}
+                      >
+                        Результаты (
+                        {
+                          overview.results.filter((r) => r.testId === t.id)
+                            .length
+                        }
+                        )
+                      </button>
+                    </div>
+                  </article>
+                ))}
+                {tests.length === 0 && (
                   <Empty
                     icon={<BookOpen />}
                     title="Материалы ещё не добавлены"
@@ -451,9 +451,11 @@ function Teacher() {
                   {Array.from(
                     new Map([
                       ...overview.results.map(
-                        (r) => [r.testId, r.testTitle] as const,
+                        (r) => [r.testId, testTitle(r)] as const,
                       ),
-                      ...overview.tests.map((t) => [t.id, t.title] as const),
+                      ...overview.tests.map(
+                        (t) => [t.id, testTitle(t)] as const,
+                      ),
                     ]),
                   ).map(([id, title]) => (
                     <option key={id} value={id}>
@@ -496,12 +498,7 @@ function Teacher() {
                             <strong>{r.name}</strong>
                             <small>Попытка {r.attemptNumber}</small>
                           </td>
-                          <td>
-                            {r.testTitle}
-                            <small>
-                              {r.exam} № {r.taskNumber}
-                            </small>
-                          </td>
+                          <td>{testTitle(r)}</td>
                           <td>
                             <span
                               className={`score-pill ${r.percentage >= 70 ? "good" : "needs-work"}`}
@@ -538,18 +535,14 @@ function Teacher() {
       )}
       {preview && (
         <Modal title="Предпросмотр теста" onClose={() => setPreview(null)}>
-          <p className="muted">
-            {preview.exam} № {preview.taskNumber} · версия {preview.version} ·{" "}
-            {preview.source}
-          </p>
-          <h3>{preview.title}</h3>
+          <h3>{testTitle(preview)}</h3>
           <Review exercises={preview.exercises} preview />
         </Modal>
       )}
       {detail && (
         <Modal title={`Работа: ${detail.name}`} onClose={() => setDetail(null)}>
           <div className="detail-meta">
-            <span>{detail.testTitle}</span>
+            <span>{testTitle(detail)}</span>
             <strong>
               {detail.correct} из {detail.total} · {detail.percentage}%
             </strong>
@@ -722,7 +715,7 @@ function ShareModal({ test, onClose }: { test: Test; onClose: () => void }) {
     [error, setError] = useState("");
   return (
     <Modal title="Поделиться тестом" onClose={onClose}>
-      <h3>{test.title}</h3>
+      <h3>{testTitle(test)}</h3>
       <p>Отправьте ссылку ученикам. Им понадобится только имя.</p>
       <label className="field-label">
         Ссылка на тест
@@ -785,7 +778,7 @@ function Review({
     <div className="review-list">
       {exercises.map((e, i) => (
         <article
-          className={`review-item ${preview ? "" : e.correct ? "correct" : "incorrect"}`}
+          className={`review-item ${preview ? "preview" : e.correct ? "correct" : "incorrect"}`}
           key={e.id}
         >
           <div className="review-top">
@@ -806,7 +799,7 @@ function Review({
               </strong>
             )}
           </div>
-          <h4>{e.prompt}</h4>
+          <h4>{webPrompt(e.prompt)}</h4>
           {preview && (
             <div className="preview-options">
               {e.options?.map((o) => (
@@ -816,17 +809,32 @@ function Review({
               ))}
             </div>
           )}
+          {preview && e.type !== "text" && !!e.options?.length && (
+            <p>
+              <span className="muted">Номера правильных ответов:</span>{" "}
+              <strong>
+                {e.options
+                  .filter((o) => (e.correctAnswer || e.key || []).includes(o.id))
+                  .map((o) => o.id)
+                  .join("") || "Не указаны"}
+              </strong>
+            </p>
+          )}
           {!preview && (
             <p>
               <span className="muted">Ответ ученика:</span>{" "}
               {readableAnswer(e, e.rawAnswer)}
             </p>
           )}
-          <p>
-            <span className="muted">Правильный ответ:</span>{" "}
-            <strong>{readableAnswer(e, e.correctAnswer || e.key)}</strong>
-          </p>
-          <div className="explanation">{e.explanation}</div>
+          {(!preview || e.type === "text") && (
+            <p>
+              <span className="muted">Правильный ответ:</span>{" "}
+              <strong>{readableAnswer(e, e.correctAnswer || e.key)}</strong>
+            </p>
+          )}
+          {!preview && e.explanation?.trim() && (
+            <div className="explanation">{e.explanation}</div>
+          )}
         </article>
       ))}
     </div>
@@ -1075,15 +1083,15 @@ function Student({ token }: { token: string }) {
             <div className="student-illustration" aria-hidden="true">
               <GraduationCap size={52} />
             </div>
-            <h1>{test.title}</h1>
-            <p className="intro-description">{test?.description}</p>
+            <h1>{testTitle(test)}</h1>
+            <p className="intro-description">{webPrompt(test?.description)}</p>
             <div className="student-test-facts">
               <span>
                 <FileCheck2 size={17} />
                 {test?.exerciseCount} упражнений
               </span>
               <span>
-                <Clock3 size={17} />≈ 5–10 минут
+                <Clock3 size={17} />≈ {estimatedDuration(test)}
               </span>
             </div>
             {test.status !== "published" ? (
@@ -1141,7 +1149,7 @@ function Student({ token }: { token: string }) {
                 <span className="exam-tag">
                   {test?.exam} № {test?.taskNumber}
                 </span>
-                <h2>{test.title}</h2>
+                <h2>{testTitle(test)}</h2>
               </div>
               <span className="student-name">{draft.name}</span>
             </div>
@@ -1183,7 +1191,7 @@ function Student({ token }: { token: string }) {
               <div className="eyebrow">
                 УПРАЖНЕНИЕ {draft.position + 1} ИЗ {test?.exerciseCount}
               </div>
-              <h1>{exercise?.prompt}</h1>
+              <h1>{webPrompt(exercise?.prompt)}</h1>
               <p className="question-hint">
                 {exercise?.type === "multiple"
                   ? "Выберите все подходящие варианты. Может быть несколько ответов."
