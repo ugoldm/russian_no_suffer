@@ -920,6 +920,16 @@ td small {
 .review-item h4 {
   font-size: 13px;
   margin: 15px 0;
+  white-space: pre-line;
+}
+.prompt-passage {
+  display: block;
+  margin-top: 1em;
+  font-weight: 400;
+}
+.question-card .prompt-passage {
+  font-family: "Golos Text", system-ui, sans-serif;
+  line-height: 1.4;
 }
 .review-item p {
   font-size: 12px;
@@ -1366,6 +1376,10 @@ td small {
   font-size: 25px;
   letter-spacing: -0.7px;
   line-height: 1.4;
+  white-space: pre-line;
+}
+.question-card .field-label input {
+  font-size: 14px;
 }
 .question-hint {
   color: #93a087;
@@ -1417,7 +1431,8 @@ td small {
   display: grid;
   place-items: center;
 }
-.option-word {
+.option-word,
+.question-card .prompt-passage {
   font-size: 19px;
   letter-spacing: 0.2px;
 }
@@ -1509,7 +1524,8 @@ td small {
     padding: 9px 12px;
     gap: 10px;
   }
-  .student-page-quiz .option-word {
+  .student-page-quiz .option-word,
+  .student-page-quiz .question-card .prompt-passage {
     font-size: 16px;
     line-height: 1.4;
     letter-spacing: 0;
@@ -1916,7 +1932,8 @@ td small {
   .question-hint {
     font-size: 10px;
   }
-  .option-word {
+  .option-word,
+  .question-card .prompt-passage {
     font-size: 19px;
   }
   .answer-option {

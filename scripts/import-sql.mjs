@@ -81,11 +81,24 @@ export function validateTest(t) {
       e.normalization &&
       Object.keys(e.normalization).some(
         (k) =>
-          !["trim", "ignoreCase"].includes(k) ||
+          !["trim", "ignoreCase", "digitSet"].includes(k) ||
           typeof e.normalization[k] !== "boolean",
       )
     )
       fail("Неизвестное правило нормализации");
+    if (e.normalization?.digitSet) {
+      if (e.type !== "text")
+        fail("digitSet допустим только для текстового ответа");
+      if (
+        e.key?.some((key) => {
+          const value = e.normalization.trim ? key.trim() : key;
+          return (
+            !/^[0-9]+$/.test(value) || new Set(value).size !== value.length
+          );
+        })
+      )
+        fail(`Ключ digitSet должен содержать цифры без повторов: ${e.id}`);
+    }
   }
   return { ...t, demo: !!t.demo, exerciseCount: t.exercises.length };
 }

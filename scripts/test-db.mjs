@@ -686,6 +686,48 @@ try {
       }
     }
   }
+  await db.exec("reset role");
+  await db.exec(
+    readFileSync("supabase/migrations/010_digit_set_answers.sql", "utf8"),
+  );
+  const digitExercise = {
+    type: "text",
+    key: ["123"],
+    normalization: { trim: true, digitSet: true },
+  };
+  const digitCheck = async (exercise, value) =>
+    (
+      await db.query("select private.grade($1::jsonb,$2::jsonb) correct", [
+        JSON.stringify(exercise),
+        JSON.stringify(value),
+      ])
+    ).rows[0].correct;
+  for (const value of ["123", "132", "213", "231", "312", "321", " 231 "])
+    assert.equal(await digitCheck(digitExercise, value), true, value);
+  for (const value of [
+    "",
+    " ",
+    "12",
+    "1234",
+    "1123",
+    "1223",
+    "1,2,3",
+    "1 2 3",
+    "12a",
+    "１２３",
+    "1\n23",
+    null,
+  ])
+    assert.equal(await digitCheck(digitExercise, value), false, String(value));
+  assert.equal(
+    await digitCheck(
+      { ...digitExercise, normalization: { trim: true } },
+      "321",
+    ),
+    false,
+  );
+  assert.equal(await digitCheck({ ...digitExercise, key: ["7"] }, "7"), true);
+  assert.equal(await digitCheck({ ...digitExercise, key: ["7"] }, "77"), false);
   console.log(
     "Supabase migration verified: grading, RLS boundary, roles, idempotency, direct links, legacy upgrade, immutable versions, reversible result hiding, unread acknowledgement.",
   );

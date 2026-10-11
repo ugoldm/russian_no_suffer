@@ -33,14 +33,7 @@ import {
   Eye,
   Undo2,
 } from "lucide-react";
-import {
-  captchaKey,
-  login,
-  logout,
-  mode,
-  rpc,
-  verify,
-} from "./api";
+import { captchaKey, login, logout, mode, rpc, verify } from "./api";
 import type { Attempt, Draft, Exercise, Overview, Test } from "./types";
 import { summarizeResults } from "./results-summary";
 import { formatReviewAnswer } from "./review-answer";
@@ -50,10 +43,28 @@ const groupsForExam = (exam: string | undefined) =>
 // Omit the paper answer-sheet instruction in every web view, including history.
 const webPrompt = (text: string | undefined) =>
   text?.replaceAll("Запишите номера ответов.", "").trim();
+function PromptText({ text }: { text: string | undefined }) {
+  const [instruction, ...paragraphs] = (webPrompt(text) || "").split(/\n\s*\n/);
+  return (
+    <>
+      {paragraphs.length ? (
+        <span className="prompt-instruction">{instruction}</span>
+      ) : (
+        instruction
+      )}
+      {!!paragraphs.length && (
+        <span className="prompt-passage">{paragraphs.join("\n\n")}</span>
+      )}
+    </>
+  );
+}
 const testTitle = (test: Pick<Test, "exam" | "taskNumber">) =>
   `${test.exam}. Задание № ${test.taskNumber}`;
-const estimatedDuration = (test: Pick<Test, "exam" | "taskNumber">) =>
-  test.exam === "ЕГЭ" && test.taskNumber === 9 ? "20–30 минут" : "5–10 минут";
+const estimatedDuration = (
+  test: Pick<Test, "exam" | "taskNumber" | "estimatedDuration">,
+) =>
+  test.estimatedDuration ||
+  (test.exam === "ЕГЭ" && test.taskNumber === 9 ? "20–30 минут" : "5–10 минут");
 const formatDate = (date: string) =>
   new Intl.DateTimeFormat("ru-RU", {
     day: "numeric",
@@ -1084,7 +1095,9 @@ function Review({
               </strong>
             )}
           </div>
-          <h4>{webPrompt(e.prompt)}</h4>
+          <h4>
+            <PromptText text={e.prompt} />
+          </h4>
           {e.type !== "text" && !!e.options?.length && (
             <ol className="review-options" aria-label="Варианты ответов">
               {e.options?.map((o) => (
@@ -1360,9 +1373,7 @@ function Student({ token }: { token: string }) {
             </div>
             <div className="section-heading">
               <h2>Разбор упражнений</h2>
-              <span className="light-label">
-                {test?.exam} № {test?.taskNumber}
-              </span>
+              <span className="light-label">{testTitle(test)}</span>
             </div>
             <Review exercises={result.exercises} />
           </>
@@ -1511,7 +1522,8 @@ function Student({ token }: { token: string }) {
                     recoveryFailed
                   }
                 >
-                  {busy ? <Loader2 size={18} className="spin" /> : null}Начать тест
+                  {busy ? <Loader2 size={18} className="spin" /> : null}Начать
+                  тест
                   <ArrowRight size={18} />
                 </Button>
               </form>
@@ -1562,18 +1574,21 @@ function Student({ token }: { token: string }) {
               <div className="eyebrow">
                 УПРАЖНЕНИЕ {draft.position + 1} ИЗ {test?.exerciseCount}
               </div>
-              <h1>{webPrompt(exercise?.prompt)}</h1>
-              <p className="question-hint">
-                {exercise?.type === "multiple"
-                  ? "Выберите все подходящие варианты. Может быть несколько ответов."
-                  : exercise?.type === "single"
-                    ? "Выберите один вариант."
-                    : "Введите короткий ответ."}
-              </p>
+              <h1>
+                <PromptText text={exercise?.prompt} />
+              </h1>
+              {exercise?.type !== "text" && (
+                <p className="question-hint">
+                  {exercise?.type === "multiple"
+                    ? "Выберите все подходящие варианты. Может быть несколько ответов."
+                    : "Выберите один вариант."}
+                </p>
+              )}
               {exercise?.type === "text" ? (
                 <label className="field-label">
                   Ваш ответ
                   <input
+                    placeholder="Без пробелов и запятых, например, 12"
                     value={
                       typeof draft.answers[exercise.id] === "string"
                         ? (draft.answers[exercise.id] as string)

@@ -28,6 +28,7 @@ export interface Test {
   description: string;
   source: string;
   exerciseCount: number;
+  estimatedDuration?: string;
   exercises: Exercise[];
 }
 export interface Attempt {

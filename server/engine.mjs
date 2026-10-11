@@ -65,10 +65,17 @@ export function grade(exercise, raw) {
     let s = value;
     if (exercise.normalization?.trim) s = s.trim();
     if (exercise.normalization?.ignoreCase) s = s.toLocaleLowerCase("ru");
+    if (exercise.type === "text" && exercise.normalization?.digitSet) {
+      if (!/^[0-9]+$/.test(s) || new Set(s).size !== s.length) return null;
+      s = [...s].sort().join("");
+    }
     return s;
   };
+  const submitted = normalize(raw);
   return (
-    raw.length > 0 && exercise.key.some((k) => normalize(k) === normalize(raw))
+    raw.length > 0 &&
+    submitted !== null &&
+    exercise.key.some((k) => normalize(k) === submitted)
   );
 }
 // Upgrade existing local records without deleting attempts or their frozen versions.
