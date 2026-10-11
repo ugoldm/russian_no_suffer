@@ -13,6 +13,8 @@ test("only teachers can hide saved work; hiding and restoring preserve student r
       state,
       "start_attempt",
       {
+        groupDay: "monday",
+        groupTime: "17:30",
         token: state.tests[0].shareToken,
         name: "Проверка скрытия",
       },

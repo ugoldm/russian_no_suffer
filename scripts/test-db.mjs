@@ -1,6 +1,7 @@
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
+import studentGroups from "../shared/student-groups.json" with { type: "json" };
 const db = new PGlite();
 try {
   await db.exec(
@@ -50,7 +51,12 @@ try {
   await as(student);
   const visible = await call("get_assignment", { token: a.token });
   assert.equal(visible.test.exercises[0].key, undefined);
-  const p = await call("start_attempt", { token: a.token, name: "SQL Ученик" });
+  const p = await call("start_attempt", {
+    groupDay: "monday",
+    groupTime: "17:30",
+    token: a.token,
+    name: "SQL Ученик",
+  });
   await assert.rejects(
     () =>
       call("submit_attempt", { attemptId: p.id, answers: { foreign: ["1"] } }),
@@ -111,6 +117,9 @@ try {
   await db.exec(
     readFileSync("supabase/migrations/006_unread_results.sql", "utf8"),
   );
+  await db.exec(
+    readFileSync("supabase/migrations/007_student_group.sql", "utf8"),
+  );
   await as(teacher, false);
   const upgraded = await call("teacher_overview");
   assert.deepEqual(Object.keys(upgraded).sort(), ["results", "tests"]);
@@ -119,6 +128,7 @@ try {
   assert.equal(upgraded.results[0].testId, "ege-4-demo");
   assert.equal(upgraded.results[0].assignmentId, undefined);
   assert.equal(upgraded.results[0].groupName, undefined);
+  assert.equal(upgraded.results[0].group, null);
   assert.equal(
     upgraded.results[0].durationSeconds,
     Math.max(
@@ -164,6 +174,8 @@ try {
   assert.equal(directTest.exercises[0].key, undefined);
   assert.ok(!JSON.stringify(directTest).includes("explanation"));
   const next = await call("start_attempt", {
+    groupDay: "monday",
+    groupTime: "17:30",
     token: direct.shareToken,
     name: "SQL Ученик",
     startedAt: "2000-01-01T00:00:00Z",
@@ -185,6 +197,8 @@ try {
     teacherSeen: true,
   });
   assert.equal(timed.attemptNumber, 2);
+  assert.equal(next.group, "ПН 17:30");
+  assert.equal(timed.group, "ПН 17:30");
   assert.ok(timed.durationSeconds >= 125 && timed.durationSeconds < 130);
   assert.deepEqual(
     await call("submit_attempt", { attemptId: next.id, answers: {} }),
@@ -196,6 +210,11 @@ try {
     (await call("teacher_overview")).results.find((r) => r.id === next.id)
       .teacherUnread,
     true,
+  );
+  assert.equal(
+    (await call("teacher_overview")).results.find((r) => r.id === next.id)
+      .group,
+    "ПН 17:30",
   );
   for (const attemptIds of [
     undefined,
@@ -311,6 +330,8 @@ try {
     timed,
   );
   const started = await call("start_attempt", {
+    groupDay: "monday",
+    groupTime: "17:30",
     token: direct.shareToken,
     name: "SQL Ученик",
   });
@@ -369,7 +390,13 @@ try {
   );
   await as(student);
   await assert.rejects(
-    () => call("start_attempt", { token: direct.shareToken, name: "Ученик" }),
+    () =>
+      call("start_attempt", {
+        groupDay: "monday",
+        groupTime: "17:30",
+        token: direct.shareToken,
+        name: "Ученик",
+      }),
     /новых попыток/,
   );
   assert.equal(
@@ -446,6 +473,79 @@ try {
     () => call("get_test", { token: direct.shareToken }),
     /permission denied/,
   );
+  await db.exec("reset role");
+  await as(student);
+  await assert.rejects(
+    () => db.query("select student_group from private.attempts"),
+    /permission denied/,
+  );
+  for (const args of [
+    {},
+    { group: "ПН 17:30" },
+    { groupDay: "monday" },
+    { groupTime: "17:30" },
+    { groupDay: "saturday", groupTime: "17:30" },
+    { groupDay: "monday", groupTime: "11:00" },
+    { groupDay: "sunday", groupTime: "11:30 " },
+    { groupDay: ["monday"], groupTime: "17:30" },
+    { groupDay: "monday", groupTime: ["17:30"] },
+  ]) {
+    await assert.rejects(
+      () =>
+        call("start_attempt", {
+          token: direct.shareToken,
+          name: "Проверка группы",
+          ...args,
+        }),
+      /Выберите день и время/,
+    );
+  }
+  for (const day of studentGroups) {
+    for (const time of day.times) {
+      const group = `${day.short} ${time}`;
+      const work = await call("start_attempt", {
+        token: direct.shareToken,
+        name: "SQL Проверка группы",
+        groupDay: day.day,
+        groupTime: time,
+        group: "Подмена",
+      });
+      assert.equal(work.group, group);
+      assert.equal(
+        (await call("get_attempt", { attemptId: work.id })).group,
+        group,
+      );
+      const saved = await call("submit_attempt", {
+        attemptId: work.id,
+        answers: {},
+        group: "Подмена",
+        groupDay: "sunday",
+        groupTime: "11:30",
+      });
+      assert.equal(saved.group, group);
+      assert.deepEqual(
+        await call("submit_attempt", {
+          attemptId: work.id,
+          answers: {},
+          group: "Подмена",
+        }),
+        saved,
+      );
+      await db.exec("reset role");
+      await as(teacher, false);
+      assert.equal(
+        (await call("teacher_result", { attemptId: work.id })).group,
+        group,
+      );
+      assert.equal(
+        (await call("teacher_overview")).results.find((r) => r.id === work.id)
+          .group,
+        group,
+      );
+      await db.exec("reset role");
+      await as(student);
+    }
+  }
   console.log(
     "Supabase migration verified: grading, RLS boundary, roles, idempotency, direct links, legacy upgrade, immutable versions, reversible result hiding, unread acknowledgement.",
   );

@@ -33,6 +33,7 @@ export interface Test {
 export interface Attempt {
   id: string;
   name: string;
+  group: string | null;
   versionId: string;
   status: string;
   testId: string;
@@ -56,6 +57,7 @@ export interface Draft {
   id: string;
   versionId: string;
   name: string;
+  group: string | null;
   answers: Record<string, string | string[]>;
   position: number;
 }

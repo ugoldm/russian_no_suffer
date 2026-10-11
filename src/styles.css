@@ -1088,12 +1088,80 @@ td small {
   margin-top: 13px;
   width: 100%;
 }
-.source-note {
-  font-size: 10px;
-  color: #a2ad96;
-  margin-top: 27px;
-  padding-top: 20px;
-  border-top: 1px solid #edf0e7;
+.student-form-heading {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.student-name-field {
+  margin-top: 24px;
+}
+.student-group-picker {
+  min-width: 0;
+  margin: 24px 0 0;
+  padding: 24px 0 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+.student-group-picker legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+  margin-bottom: 8px;
+}
+.student-group-description {
+  clear: both;
+  color: #77836e;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.student-group-label {
+  margin: 18px 0 9px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.student-group-days {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+.student-group-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.student-group-choice {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid #dce4d5;
+  border-radius: 9px;
+  background: white;
+  color: #2d4739;
+  font-size: 14px;
+  font-weight: 500;
+}
+.student-group-choice:hover:not(:disabled):not([aria-pressed="true"]) {
+  background: #f3f6ec;
+  border-color: #93ad85;
+}
+.student-group-choice[aria-pressed="true"] {
+  background: var(--green);
+  border-color: var(--green);
+  color: white;
+}
+.student-group-choice:disabled {
+  background: #f4f6ef;
+  color: #8c9587;
+  opacity: 1;
+}
+.result-group {
+  white-space: nowrap;
+}
+@media (max-width: 480px) {
+  .student-group-days {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 .student-footer {
   font-size: 10px;
@@ -1663,7 +1731,6 @@ td small {
 .light-label {
   font-size: 11px;
 }
-.source-note,
 .helper {
   color: #77836e;
 }

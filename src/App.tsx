@@ -39,6 +39,7 @@ import {
 import type { Attempt, Draft, Exercise, Overview, Test } from "./types";
 import { summarizeResults } from "./results-summary";
 import { formatReviewAnswer } from "./review-answer";
+import studentGroups from "../shared/student-groups.json";
 // Omit the paper answer-sheet instruction in every web view, including history.
 const webPrompt = (text: string | undefined) =>
   text?.replaceAll("Запишите номера ответов.", "").trim();
@@ -745,6 +746,7 @@ function Teacher() {
                           №
                         </th>
                         <th>Ученик</th>
+                        <th>Группа</th>
                         <th>Тест</th>
                         <th>Результат</th>
                         <th>Время прохождения</th>
@@ -761,6 +763,7 @@ function Teacher() {
                           <td>
                             <strong>{r.name}</strong>
                           </td>
+                          <td className="result-group">{r.group || "—"}</td>
                           <td>{testTitle(r)}</td>
                           <td>
                             <span
@@ -823,6 +826,7 @@ function Teacher() {
         <Modal title={`Работа: ${detail.name}`} onClose={() => setDetail(null)}>
           <div className="detail-meta">
             <span>{testTitle(detail)}</span>
+            <span>Группа: {detail.group || "Не указана"}</span>
             <strong>
               {detail.correct} из {detail.total} · {detail.percentage}%
             </strong>
@@ -996,7 +1000,10 @@ function ShareModal({ test, onClose }: { test: Test; onClose: () => void }) {
   return (
     <Modal title="Поделиться тестом" onClose={onClose}>
       <h3>{testTitle(test)}</h3>
-      <p>Отправьте ссылку ученикам. Им понадобится только имя.</p>
+      <p>
+        Отправьте ссылку ученикам. Перед началом они введут имя и выберут
+        группу.
+      </p>
       <label className="field-label">
         Ссылка на тест
         <input
@@ -1113,6 +1120,8 @@ function Student({ token }: { token: string }) {
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true),
     [name, setName] = useState(""),
+    [groupDay, setGroupDay] = useState(""),
+    [groupTime, setGroupTime] = useState(""),
     [draft, setDraft] = useState<Draft | null>(null),
     [result, setResult] = useState<Attempt | null>(null),
     [busy, setBusy] = useState(false),
@@ -1149,6 +1158,11 @@ function Student({ token }: { token: string }) {
       if (saved?.id) {
         try {
           const p = await rpc<Attempt>("get_attempt", { attemptId: saved.id });
+          const schedule = studentGroups.find((group) =>
+            group.times.some((time) => `${group.short} ${time}` === p.group),
+          );
+          setGroupDay(schedule?.day || "");
+          setGroupTime(schedule ? p.group!.slice(3) : "");
           if (p.status === "submitted") {
             setResult(p);
             try {
@@ -1158,7 +1172,7 @@ function Student({ token }: { token: string }) {
               setStorageWarning(true);
             }
           } else if (saved.versionId === a.versionId) {
-            setDraft(saved);
+            setDraft({ ...saved, group: p.group });
             setName(saved.name);
           }
         } catch (e) {
@@ -1199,9 +1213,9 @@ function Student({ token }: { token: string }) {
     setBusy(true);
     setError("");
     try {
-      const p = await rpc<{ id: string; versionId: string; name: string }>(
+      const p = await rpc<Pick<Draft, "id" | "versionId" | "name" | "group">>(
         "start_attempt",
-        { token, name },
+        { token, name, groupDay, groupTime },
       );
       setDraft({ ...p, answers: {}, position: 0 });
       setResult(null);
@@ -1344,10 +1358,9 @@ function Student({ token }: { token: string }) {
           </>
         ) : !draft ? (
           <div className="student-intro">
-            <span className="exam-tag">
-              {test?.exam} № {test?.taskNumber}{" "}
-              {test?.demo && <span>· Демо</span>}
-            </span>
+            {test.demo && (
+              <span className="exam-tag">Демонстрационный тест</span>
+            )}
             <div className="student-illustration" aria-hidden="true">
               <GraduationCap size={52} />
             </div>
@@ -1374,8 +1387,8 @@ function Student({ token }: { token: string }) {
                   void start();
                 }}
               >
-                <label className="field-label">
-                  Как вас зовут?
+                <label className="field-label student-name-field">
+                  <span className="student-form-heading">Твоё имя</span>
                   <input
                     required
                     maxLength={80}
@@ -1385,14 +1398,82 @@ function Student({ token }: { token: string }) {
                     placeholder="Например, Маша Иванова"
                   />
                 </label>
-                <p className="helper">
-                  Имя и ответы сохраняются и доступны вашему преподавателю.
-                  Email и пароль не нужны.
-                </p>
-                <p className="helper">
-                  Время прохождения считается после нажатия «Начать практику» до
-                  отправки ответов, включая перерывы.
-                </p>
+                <fieldset
+                  className="student-group-picker"
+                  aria-describedby="student-group-description"
+                >
+                  <legend className="student-form-heading">Твоя группа</legend>
+                  <p
+                    className="student-group-description"
+                    id="student-group-description"
+                  >
+                    Выбери день и время, когда у тебя обычно проходят занятия
+                  </p>
+                  <p
+                    className="student-group-label"
+                    id="student-group-day-label"
+                  >
+                    День занятий
+                  </p>
+                  <div
+                    className="student-group-days"
+                    role="group"
+                    aria-labelledby="student-group-day-label"
+                  >
+                    {studentGroups.map((group) => (
+                      <button
+                        type="button"
+                        className="student-group-choice"
+                        key={group.day}
+                        aria-label={group.label}
+                        aria-pressed={groupDay === group.day}
+                        onClick={() => {
+                          if (groupDay !== group.day) {
+                            setGroupDay(group.day);
+                            setGroupTime("");
+                          }
+                        }}
+                      >
+                        {group.short}
+                      </button>
+                    ))}
+                  </div>
+                  <p
+                    className="student-group-label"
+                    id="student-group-time-label"
+                  >
+                    Время начала занятий
+                  </p>
+                  <div
+                    className="student-group-times"
+                    role="group"
+                    aria-labelledby="student-group-time-label"
+                  >
+                    {groupDay ? (
+                      studentGroups
+                        .find((group) => group.day === groupDay)
+                        ?.times.map((time) => (
+                          <button
+                            type="button"
+                            className="student-group-choice"
+                            key={time}
+                            aria-pressed={groupTime === time}
+                            onClick={() => setGroupTime(time)}
+                          >
+                            {time}
+                          </button>
+                        ))
+                    ) : (
+                      <button
+                        type="button"
+                        className="student-group-choice"
+                        disabled
+                      >
+                        Сначала выбери день
+                      </button>
+                    )}
+                  </div>
+                </fieldset>
                 <ErrorBox message={error} />
                 {recoveryFailed && (
                   <Button kind="secondary" onClick={load}>
@@ -1401,22 +1482,24 @@ function Student({ token }: { token: string }) {
                 )}
                 <Button
                   type="submit"
-                  disabled={busy || !name.trim() || recoveryFailed}
+                  disabled={
+                    busy ||
+                    !name.trim() ||
+                    !groupDay ||
+                    !groupTime ||
+                    recoveryFailed
+                  }
                 >
                   {busy ? <Loader2 size={18} className="spin" /> : null}Начать
                   практику <ArrowRight size={18} />
                 </Button>
               </form>
             )}
-            <p className="source-note">{test?.source}</p>
           </div>
         ) : (
           <>
             <div className="quiz-heading">
               <div>
-                <span className="exam-tag">
-                  {test?.exam} № {test?.taskNumber}
-                </span>
                 <h2>{testTitle(test)}</h2>
               </div>
               <span className="student-name">{draft.name}</span>
@@ -1569,6 +1652,8 @@ function Student({ token }: { token: string }) {
                 setDraft(null);
                 setResult(null);
                 setName("");
+                setGroupDay("");
+                setGroupTime("");
                 if (captchaKey) {
                   setReady(false);
                   setCaptcha("");

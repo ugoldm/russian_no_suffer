@@ -29,6 +29,8 @@ test("HTTP API persists records across restart and isolates student sessions", a
     const a = overview.tests[0];
     const p = (
       await call("student", "start_attempt", {
+        groupDay: "monday",
+        groupTime: "17:30",
         token: a.shareToken,
         name: "API Ученик",
       })

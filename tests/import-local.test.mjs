@@ -23,7 +23,12 @@ test("local import is atomic, repeatable and preserves attempts and version link
     execute(
       before,
       "start_attempt",
-      { token: before.tests[0].shareToken, name: "Тест" },
+      {
+        groupDay: "monday",
+        groupTime: "17:30",
+        token: before.tests[0].shareToken,
+        name: "Тест",
+      },
       student,
     );
     db.prepare("UPDATE app_state SET payload=? WHERE id=1").run(

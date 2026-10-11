@@ -13,6 +13,8 @@ test("read acknowledgement is secure, snapshot-based, idempotent and preserves r
       state,
       "start_attempt",
       {
+        groupDay: "monday",
+        groupTime: "17:30",
         token: state.tests[0].shareToken,
         name: "Проверка уведомлений",
       },
@@ -85,7 +87,12 @@ test("legacy results start as seen; submitting an older draft still makes new un
   const first = execute(
     state,
     "start_attempt",
-    { token: state.tests[0].shareToken, name: "Старая работа" },
+    {
+      groupDay: "monday",
+      groupTime: "17:30",
+      token: state.tests[0].shareToken,
+      name: "Старая работа",
+    },
     student,
   );
   execute(
@@ -98,7 +105,12 @@ test("legacy results start as seen; submitting an older draft still makes new un
   const draft = execute(
     state,
     "start_attempt",
-    { token: state.tests[0].shareToken, name: "Черновик" },
+    {
+      groupDay: "monday",
+      groupTime: "17:30",
+      token: state.tests[0].shareToken,
+      name: "Черновик",
+    },
     student,
   );
   migrateState(state);

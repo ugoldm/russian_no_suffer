@@ -16,7 +16,13 @@ test("duration excludes name entry, survives recovery and is frozen on retry", (
   const p = execute(
     s,
     "start_attempt",
-    { token, name: "Ученик", startedAt: "2000-01-01" },
+    {
+      groupDay: "monday",
+      groupTime: "17:30",
+      token,
+      name: "Ученик",
+      startedAt: "2000-01-01",
+    },
     student,
   );
   ctx.mock.timers.tick(85000);
@@ -51,7 +57,12 @@ test("duration excludes name entry, survives recovery and is frozen on retry", (
     execute(s, "teacher_result", { attemptId: p.id }, teacher).durationSeconds,
     125,
   );
-  const p2 = execute(s, "start_attempt", { token, name: "Ученик" }, student);
+  const p2 = execute(
+    s,
+    "start_attempt",
+    { groupDay: "monday", groupTime: "17:30", token, name: "Ученик" },
+    student,
+  );
   ctx.mock.timers.tick(2000);
   assert.equal(
     execute(s, "submit_attempt", { attemptId: p2.id, answers: {} }, student)
@@ -70,7 +81,12 @@ function setup() {
   const p = execute(
     s,
     "start_attempt",
-    { token: test.shareToken, name: "Тестовый ученик" },
+    {
+      groupDay: "monday",
+      groupTime: "17:30",
+      token: test.shareToken,
+      name: "Тестовый ученик",
+    },
     student,
   );
   return { s, test, p };
@@ -148,7 +164,12 @@ test("archived tests prevent starting but allow submitting an existing attempt",
       execute(
         s,
         "start_attempt",
-        { token: test.shareToken, name: "Ученик" },
+        {
+          groupDay: "monday",
+          groupTime: "17:30",
+          token: test.shareToken,
+          name: "Ученик",
+        },
         student,
       ),
     /новых попыток/,
@@ -165,13 +186,23 @@ test("repeats are separate and matching names do not identify owners", () => {
   const p2 = execute(
     s,
     "start_attempt",
-    { token: test.shareToken, name: "Тестовый ученик" },
+    {
+      groupDay: "monday",
+      groupTime: "17:30",
+      token: test.shareToken,
+      name: "Тестовый ученик",
+    },
     student,
   );
   const p3 = execute(
     s,
     "start_attempt",
-    { token: test.shareToken, name: "Тестовый ученик" },
+    {
+      groupDay: "monday",
+      groupTime: "17:30",
+      token: test.shareToken,
+      name: "Тестовый ученик",
+    },
     { id: "other" },
   );
   assert.notEqual(p.id, p2.id);

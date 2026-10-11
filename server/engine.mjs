@@ -1,4 +1,5 @@
 import { randomUUID, randomBytes } from "node:crypto";
+import studentGroups from "../shared/student-groups.json" with { type: "json" };
 export class AppError extends Error {
   constructor(message, status = 400) {
     super(message);
@@ -13,6 +14,12 @@ const cleanName = (value) => {
   if (typeof value !== "string" || !value.trim() || value.trim().length > 80)
     throw new AppError("Введите имя от 1 до 80 символов.");
   return value.trim();
+};
+const cleanGroup = (day, time) => {
+  const schedule = studentGroups.find((group) => group.day === day);
+  if (!schedule || !schedule.times.includes(time))
+    throw new AppError("Выберите день и время занятий из списка.");
+  return `${schedule.short} ${time}`;
 };
 export function publicTest(test) {
   const { exercises, shareToken, legacyTokens, ...metadata } = test;
@@ -97,6 +104,7 @@ function result(state, attempt) {
   const { teacherHidden, teacherSeen, ...savedAttempt } = attempt;
   return {
     ...savedAttempt,
+    group: attempt.group ?? null,
     testId: test.id,
     testTitle: test.title,
     exam: test.exam,
@@ -233,6 +241,7 @@ export function execute(state, action, args, actor) {
         versionId: t.versionId,
         ownerId: actor.id,
         name: cleanName(args.name),
+        group: cleanGroup(args.groupDay, args.groupTime),
         status: "started",
         startedAt: now,
         submittedAt: null,
@@ -246,6 +255,7 @@ export function execute(state, action, args, actor) {
         id: p.id,
         versionId: p.versionId,
         name: p.name,
+        group: p.group,
         status: p.status,
       };
     }
@@ -253,7 +263,13 @@ export function execute(state, action, args, actor) {
       const p = ownAttempt();
       return p.status === "submitted"
         ? result(state, p)
-        : { id: p.id, versionId: p.versionId, name: p.name, status: p.status };
+        : {
+            id: p.id,
+            versionId: p.versionId,
+            name: p.name,
+            group: p.group ?? null,
+            status: p.status,
+          };
     }
     case "submit_attempt": {
       const p = ownAttempt();
