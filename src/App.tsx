@@ -1464,49 +1464,60 @@ function Student({ token }: { token: string }) {
           </div>
         ) : result ? (
           <>
-            <div className="result-hero">
-              <span className="result-check">
-                <CheckCircle2 size={36} />
-              </span>
-              <div className="eyebrow">РАБОТА ЗАВЕРШЕНА</div>
-              <h1>
-                {result.percentage >= 80
-                  ? "Отличная работа!"
-                  : result.percentage >= 50
-                    ? "Хорошее начало!"
-                    : "Разберём ответы и потренируемся ещё."}
-              </h1>
-              <p>{result.name}, теперь можно спокойно разобрать ответы.</p>
-              <div className="result-score">
-                <strong>
-                  {result.percentage}
-                  <span>%</span>
-                </strong>
-                <p>
-                  {result.correct} из {result.total}{" "}
-                  {result.exercises.some((e) => e.type === "group")
-                    ? "баллов набрано"
-                    : "упражнений выполнено верно"}
+            <div className="result-overview">
+              <div className="result-hero">
+                <div className="result-status">
+                  <span>РАБОТА ЗАВЕРШЕНА</span>
+                </div>
+                <h1>
+                  {result.percentage >= 80
+                    ? "Отличная работа!"
+                    : result.percentage >= 50
+                      ? "Хорошее начало!"
+                      : "Разберём ответы и потренируемся ещё."}
+                </h1>
+                <p>{result.name}, теперь можно спокойно разобрать ответы.</p>
+                <div className="result-score">
+                  <strong>
+                    {result.percentage}
+                    <span>%</span>
+                  </strong>
+                  <p>
+                    {result.correct} из {result.total}{" "}
+                    {result.exercises.some((e) => e.type === "group")
+                      ? "баллов набрано"
+                      : "упражнений выполнено верно"}
+                  </p>
+                </div>
+                <p
+                  className="result-time"
+                  aria-label={`Время прохождения: ${formatDuration(result.durationSeconds)}`}
+                >
+                  <Clock3 size={14} aria-hidden="true" />
+                  <span>{formatDuration(result.durationSeconds)}</span>
                 </p>
+                <p className="helper">
+                  Это результат теста, а не экзаменационный балл.
+                </p>
+                <div className="result-saved" role="status">
+                  <Check size={17} aria-hidden="true" />
+                  <span>
+                    {mode === "demo"
+                      ? "Результат сохранён в локальном демонстрационном кабинете."
+                      : "Результат сохранён и доступен преподавателю."}
+                  </span>
+                </div>
               </div>
-              <p>Время прохождения: {formatDuration(result.durationSeconds)}</p>
-              <div className="result-saved">
-                <Check size={17} />
-                {mode === "demo"
-                  ? "Результат сохранён в локальном демонстрационном кабинете."
-                  : "Результат сохранён и доступен преподавателю."}
+              <div className="result-actions">
+                <Button
+                  kind="secondary"
+                  onClick={() => {
+                    setResult(null);
+                  }}
+                >
+                  <RefreshCw size={17} /> Пройти ещё раз
+                </Button>
               </div>
-              <p className="helper">
-                Это результат теста, а не экзаменационный балл.
-              </p>
-              <Button
-                kind="secondary"
-                onClick={() => {
-                  setResult(null);
-                }}
-              >
-                <RefreshCw size={17} /> Пройти ещё раз
-              </Button>
             </div>
             <div className="section-heading">
               <h2>Разбор упражнений</h2>
