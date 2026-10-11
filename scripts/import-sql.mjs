@@ -4,6 +4,8 @@ import { dirname, resolve } from "node:path";
 import { randomUUID, createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 export function testTopic(test) {
+  if (test.title?.startsWith(`${test.exam}. Задания № `))
+    return test.title.slice(test.exam.length + 2);
   const prefix = `${test.exam}. Задание № ${test.taskNumber}. `;
   return test.title?.startsWith(prefix)
     ? test.title.slice(prefix.length).trim()
@@ -41,72 +43,101 @@ export function validateTest(t) {
     t.exercises.length > 100
   )
     fail("Нужно от 1 до 100 упражнений");
-  const ids = new Set();
-  for (const e of t.exercises) {
-    if (typeof e.id !== "string" || !e.id || ids.has(e.id))
-      fail("Неправильный или повторяющийся ID упражнения");
-    ids.add(e.id);
-    if (
-      !["single", "multiple", "text"].includes(e.type) ||
-      typeof e.prompt !== "string" ||
-      !e.prompt.trim()
-    )
-      fail(`Неверный формат ${e.id}`);
-    if (
-      t.status === "published" &&
-      (!Array.isArray(e.key) ||
-        !e.key.length ||
-        e.key.some((k) => typeof k !== "string" || !k) ||
-        new Set(e.key).size !== e.key.length)
-    )
-      fail(`Нет достоверного ключа ${e.id}`);
-    if (e.type !== "text") {
+  const validateExercises = (exercises, nested = false) => {
+    const ids = new Set();
+    for (const e of exercises) {
+      if (typeof e.id !== "string" || !e.id || ids.has(e.id))
+        fail("Неправильный или повторяющийся ID упражнения");
+      ids.add(e.id);
       if (
-        !Array.isArray(e.options) ||
-        e.options.length < 2 ||
-        e.options.length > 30 ||
-        e.options.some(
-          (o) =>
-            typeof o.id !== "string" ||
-            !o.id ||
-            typeof o.text !== "string" ||
-            !o.text.trim(),
-        ) ||
-        new Set(e.options.map((o) => o.id)).size !== e.options.length
+        !["single", "multiple", "text", "group"].includes(e.type) ||
+        typeof e.prompt !== "string" ||
+        !e.prompt.trim()
       )
-        fail(`Неверные варианты ${e.id}`);
-      if (e.key?.some((k) => !e.options.some((o) => o.id === k)))
-        fail(`Ключ отсутствует в вариантах ${e.id}`);
+        fail(`Неверный формат ${e.id}`);
+      if (e.type === "group") {
+        if (
+          nested ||
+          typeof e.passage !== "string" ||
+          !e.passage.trim() ||
+          !Array.isArray(e.items) ||
+          e.items.length < 1 ||
+          e.items.length > 20
+        )
+          fail(`Неверная группа заданий ${e.id}`);
+        const childIds = new Set(e.items.map((item) => item.id));
+        if (childIds.size !== e.items.length)
+          fail("Повторяющиеся ID заданий текста");
+        // Child IDs are scoped to their passage.
+        validateExercises(e.items, true);
+        continue;
+      }
       if (
-        e.type === "single" &&
-        e.key?.length !== 1 &&
-        t.status === "published"
+        t.status === "published" &&
+        (!Array.isArray(e.key) ||
+          !e.key.length ||
+          e.key.some((k) => typeof k !== "string" || !k) ||
+          new Set(e.key).size !== e.key.length)
       )
-        fail("У single должен быть один ответ");
+        fail(`Нет достоверного ключа ${e.id}`);
+      if (e.type !== "text" || e.options !== undefined) {
+        if (
+          !Array.isArray(e.options) ||
+          e.options.length < 2 ||
+          e.options.length > 30 ||
+          e.options.some(
+            (o) =>
+              typeof o.id !== "string" ||
+              !o.id ||
+              typeof o.text !== "string" ||
+              !o.text.trim(),
+          ) ||
+          new Set(e.options.map((o) => o.id)).size !== e.options.length
+        )
+          fail(`Неверные варианты ${e.id}`);
+        if (
+          e.type !== "text" &&
+          e.key?.some((k) => !e.options.some((o) => o.id === k))
+        )
+          fail(`Ключ отсутствует в вариантах ${e.id}`);
+        if (
+          e.type === "single" &&
+          e.key?.length !== 1 &&
+          t.status === "published"
+        )
+          fail("У single должен быть один ответ");
+      }
+      if (
+        e.normalization &&
+        Object.keys(e.normalization).some(
+          (k) =>
+            !["trim", "ignoreCase", "digitSet"].includes(k) ||
+            typeof e.normalization[k] !== "boolean",
+        )
+      )
+        fail("Неизвестное правило нормализации");
+      if (e.normalization?.digitSet) {
+        if (e.type !== "text")
+          fail("digitSet допустим только для текстового ответа");
+        if (
+          e.key?.some((key) => {
+            const value = e.normalization.trim ? key.trim() : key;
+            return (
+              !/^[0-9]+$/.test(value) || new Set(value).size !== value.length
+            );
+          })
+        )
+          fail(`Ключ digitSet должен содержать цифры без повторов: ${e.id}`);
+      }
     }
-    if (
-      e.normalization &&
-      Object.keys(e.normalization).some(
-        (k) =>
-          !["trim", "ignoreCase", "digitSet"].includes(k) ||
-          typeof e.normalization[k] !== "boolean",
-      )
-    )
-      fail("Неизвестное правило нормализации");
-    if (e.normalization?.digitSet) {
-      if (e.type !== "text")
-        fail("digitSet допустим только для текстового ответа");
-      if (
-        e.key?.some((key) => {
-          const value = e.normalization.trim ? key.trim() : key;
-          return (
-            !/^[0-9]+$/.test(value) || new Set(value).size !== value.length
-          );
-        })
-      )
-        fail(`Ключ digitSet должен содержать цифры без повторов: ${e.id}`);
-    }
-  }
+  };
+  validateExercises(t.exercises);
+  const maximumScore = t.exercises.reduce(
+    (sum, e) => sum + (e.type === "group" ? e.items.length : 1),
+    0,
+  );
+  if (t.maximumScore !== undefined && t.maximumScore !== maximumScore)
+    fail("Максимальный балл не совпадает с числом проверяемых заданий");
   return { ...t, demo: !!t.demo, exerciseCount: t.exercises.length };
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
@@ -133,7 +164,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const literal = delimiter + JSON.stringify(t) + delimiter;
     const prefixSql =
       "(data->>'exam')||'. Задание № '||(data->>'taskNumber')||'. '";
-    const topicSql = `case when position((${prefixSql}) in (data->>'title'))=1 then btrim(substr(data->>'title',length(${prefixSql})+1)) else '' end`;
+    const topicSql = `case when position((${prefixSql}) in (data->>'title'))=1 then btrim(substr(data->>'title',length(${prefixSql})+1)) when position((data->>'exam')||'. Задания № ' in (data->>'title'))=1 then substr(data->>'title',length(data->>'exam')+3) else '' end`;
     const sql = `-- Import SHA256: ${createHash("sha256").update(raw).digest("hex")}\n-- Generated content. Review as teacher before publishing.\ndo $import$\ndeclare new_data jsonb := ${literal}::jsonb; existing jsonb;\nbegin\n  if not exists(select 1 from private.teachers where user_id=${quote(owner)}::uuid) then raise exception 'Teacher is not allowlisted'; end if;\n  select data into existing from private.tests where version_id=${quote(t.versionId)};\n  if existing is not null then\n    if existing is distinct from new_data or not exists(select 1 from private.tests where version_id=${quote(t.versionId)} and owner_id=${quote(owner)}::uuid) then raise exception 'Version already exists with different content or owner'; end if;\n  else\n    if exists(select 1 from private.tests where owner_id=${quote(owner)}::uuid and data->>'exam'=new_data->>'exam' and data->>'year'=new_data->>'year' and data->'taskNumber'=new_data->'taskNumber' and (${topicSql})=${quote(testTopic(t))} and data->>'id'<>new_data->>'id') then raise exception 'This exam number already has another test ID'; end if;\n    insert into private.tests(version_id,owner_id,data) values(${quote(t.versionId)},${quote(owner)}::uuid,new_data);\n  end if;\nend $import$;\n`;
     mkdirSync(dirname(dest), { recursive: true });
     writeFileSync(dest, sql);

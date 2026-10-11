@@ -22,14 +22,53 @@ const cleanGroup = (exam, day, time) => {
     throw new AppError("Выберите день и время занятий из списка.");
   return `${schedule.short} ${time}`;
 };
+export function publicExercise(exercise) {
+  const { key, explanation, normalization, items, ...data } = exercise;
+  return items ? { ...data, items: items.map(publicExercise) } : data;
+}
+export function scoredAnswers(exercise, raw) {
+  if (exercise.type !== "group") return [{ exercise, raw }];
+  if (
+    raw != null &&
+    (typeof raw !== "object" ||
+      Array.isArray(raw) ||
+      Object.keys(raw).some(
+        (id) => !exercise.items.some((item) => item.id === id),
+      ))
+  )
+    throw new AppError("Некорректные ответы на задания текста.");
+  return exercise.items.map((item) => ({
+    exercise: item,
+    raw: raw?.[item.id],
+  }));
+}
+export function resultExercise(exercise, raw) {
+  if (exercise.type === "group") {
+    const items = scoredAnswers(exercise, raw).map(({ exercise, raw }) =>
+      resultExercise(exercise, raw),
+    );
+    return {
+      ...exercise,
+      items,
+      rawAnswer: raw ?? {},
+      correct: items.every((item) => item.correct),
+      score: items.filter((item) => item.correct).length,
+      total: items.length,
+    };
+  }
+  return {
+    ...exercise,
+    rawAnswer: raw ?? (exercise.type === "multiple" ? [] : ""),
+    correct: grade(exercise, raw),
+    correctAnswer: exercise.key,
+  };
+}
 export function publicTest(test) {
   const { exercises, shareToken, legacyTokens, ...metadata } = test;
   return {
     ...metadata,
     exerciseCount: exercises.length,
-    exercises: exercises.map(
-      ({ key, explanation, normalization, ...exercise }) => exercise,
-    ),
+    exercises: exercises.map(publicExercise),
   };
 }
 export function grade(exercise, raw) {
@@ -129,13 +168,9 @@ function result(state, attempt) {
             ),
           )
         : null,
-    exercises: test.exercises.map((e) => ({
-      ...e,
-      rawAnswer: attempt.answers[e.id] ?? (e.type === "multiple" ? [] : ""),
-      correct: grade(e, attempt.answers[e.id]),
-      correctAnswer: e.key,
-      explanation: e.explanation,
-    })),
+    exercises: test.exercises.map((e) =>
+      resultExercise(e, attempt.answers[e.id]),
+    ),
   };
 }
 export function execute(state, action, args, actor) {
@@ -295,12 +330,15 @@ export function execute(state, action, args, actor) {
         )
       )
         throw new AppError("В ответах есть упражнение из другого теста.");
-      const correct = t.exercises.filter((e) =>
-        grade(e, args.answers[e.id]),
+      const answers = t.exercises.flatMap((e) =>
+        scoredAnswers(e, args.answers[e.id]),
+      );
+      const correct = answers.filter(({ exercise, raw }) =>
+        grade(exercise, raw),
       ).length;
       p.answers = structuredClone(args.answers);
       p.correct = correct;
-      p.total = t.exercises.length;
+      p.total = answers.length;
       p.status = "submitted";
       p.teacherSeen = false;
       p.submittedAt = now;

@@ -34,7 +34,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { captchaKey, login, logout, mode, rpc, verify } from "./api";
-import type { Attempt, Draft, Exercise, Overview, Test } from "./types";
+import type { Answer, Attempt, Draft, Exercise, Overview, Test } from "./types";
 import { summarizeResults } from "./results-summary";
 import { formatReviewAnswer } from "./review-answer";
 import studentGroups from "../shared/student-groups.json";
@@ -66,7 +66,10 @@ const testTitle = (
 ) => {
   const base = `${test.exam}. Задание № ${test.taskNumber}`;
   const savedTitle = test.title ?? test.testTitle;
-  return savedTitle?.startsWith(`${base}. `) ? savedTitle : base;
+  return savedTitle?.startsWith(`${base}. `) ||
+    savedTitle?.startsWith(`${test.exam}. Задания № `)
+    ? savedTitle
+    : base;
 };
 const estimatedDuration = (
   test: Pick<Test, "exam" | "taskNumber" | "estimatedDuration">,
@@ -540,6 +543,7 @@ function Teacher() {
                       <span>
                         <FileCheck2 size={15} />
                         {t.exerciseCount} упражнений
+                        {t.maximumScore ? ` · ${t.maximumScore} баллов` : ""}
                       </span>
                       <span>
                         <Clock3 size={15} />≈ {estimatedDuration(t)}
@@ -1075,9 +1079,11 @@ function ShareModal({ test, onClose }: { test: Test; onClose: () => void }) {
 function Review({
   exercises,
   preview = false,
+  nested = false,
 }: {
   exercises: Exercise[];
   preview?: boolean;
+  nested?: boolean;
 }) {
   return (
     <div className="review-list">
@@ -1087,10 +1093,14 @@ function Review({
           key={e.id}
         >
           <div className="review-top">
-            <span>Упражнение {i + 1}</span>
+            <span>
+              {nested ? `Задание № ${e.taskNumber}` : `Упражнение ${i + 1}`}
+            </span>
             {!preview && (
               <strong>
-                {e.correct ? (
+                {e.type === "group" ? (
+                  `${e.score} из ${e.total} баллов`
+                ) : e.correct ? (
                   <>
                     <CheckCircle2 size={16} />
                     Верно
@@ -1107,34 +1117,47 @@ function Review({
           <h4>
             <PromptText text={e.prompt} />
           </h4>
-          {e.type !== "text" && !!e.options?.length && (
-            <ol className="review-options" aria-label="Варианты ответов">
-              {e.options?.map((o) => (
-                <li key={o.id}>{o.text}</li>
-              ))}
-            </ol>
-          )}
-          {preview && e.type !== "text" && !!e.options?.length && (
-            <p>
-              <span className="muted">Номера правильных ответов:</span>{" "}
-              <strong>
-                {formatReviewAnswer(e, e.correctAnswer || e.key, "Не указаны")}
-              </strong>
-            </p>
-          )}
-          {!preview && (
-            <p>
-              <span className="muted">
-                {e.type === "text" ? "Ответ ученика:" : "Выбранный ответ:"}
-              </span>{" "}
-              <strong>{formatReviewAnswer(e, e.rawAnswer)}</strong>
-            </p>
-          )}
-          {(!preview || e.type === "text") && (
-            <p>
-              <span className="muted">Правильный ответ:</span>{" "}
-              <strong>{formatReviewAnswer(e, e.correctAnswer || e.key)}</strong>
-            </p>
+          {e.passage && <div className="reading-passage">{e.passage}</div>}
+          {e.type === "group" ? (
+            <Review exercises={e.items || []} preview={preview} nested />
+          ) : (
+            <>
+              {!!e.options?.length && (
+                <ol className="review-options" aria-label="Варианты ответов">
+                  {e.options?.map((o) => (
+                    <li key={o.id}>{o.text}</li>
+                  ))}
+                </ol>
+              )}
+              {preview && e.type !== "text" && !!e.options?.length && (
+                <p>
+                  <span className="muted">Номера правильных ответов:</span>{" "}
+                  <strong>
+                    {formatReviewAnswer(
+                      e,
+                      e.correctAnswer || e.key,
+                      "Не указаны",
+                    )}
+                  </strong>
+                </p>
+              )}
+              {!preview && (
+                <p>
+                  <span className="muted">
+                    {e.type === "text" ? "Ответ ученика:" : "Выбранный ответ:"}
+                  </span>{" "}
+                  <strong>{formatReviewAnswer(e, e.rawAnswer)}</strong>
+                </p>
+              )}
+              {(!preview || e.type === "text") && (
+                <p>
+                  <span className="muted">Правильный ответ:</span>{" "}
+                  <strong>
+                    {formatReviewAnswer(e, e.correctAnswer || e.key)}
+                  </strong>
+                </p>
+              )}
+            </>
           )}
           {!preview && e.explanation?.trim() && (
             <div className="explanation">{e.explanation}</div>
@@ -1142,6 +1165,89 @@ function Review({
         </article>
       ))}
     </div>
+  );
+}
+function answerFilled(exercise: Exercise, answer: Answer | undefined): boolean {
+  if (exercise.type === "group")
+    return (
+      !!answer &&
+      typeof answer === "object" &&
+      !Array.isArray(answer) &&
+      !!exercise.items?.every((item) => answerFilled(item, answer[item.id]))
+    );
+  return Array.isArray(answer)
+    ? answer.length > 0
+    : typeof answer === "string" && answer.length > 0;
+}
+function AnswerInput({
+  exercise,
+  answer,
+  onChange,
+}: {
+  exercise: Exercise;
+  answer: Answer | undefined;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <>
+      {" "}
+      {exercise.type !== "text" && (
+        <p className="question-hint">
+          {exercise.type === "multiple"
+            ? "Выберите все подходящие варианты. Может быть несколько ответов."
+            : "Выберите один вариант."}
+        </p>
+      )}
+      {exercise.type === "text" && !!exercise.options?.length && (
+        <ol className="reading-options">
+          {exercise.options.map((o) => (
+            <li key={o.id}>{o.text}</li>
+          ))}
+        </ol>
+      )}
+      {exercise.type === "text" ? (
+        <label className="field-label">
+          Ваш ответ
+          <input
+            placeholder={
+              exercise.answerPlaceholder ===
+              "Введите слово или словосочетание без пробелов"
+                ? "Введите слово или словосочетание без пробелов и запятых"
+                : exercise.answerPlaceholder ||
+                  "Без пробелов и запятых, например, 12"
+            }
+            value={typeof answer === "string" ? (answer as string) : ""}
+            onChange={(e) => onChange(e.target.value)}
+            maxLength={2000}
+          />
+        </label>
+      ) : (
+        <div className="answer-options">
+          {exercise.options?.map((o, optionIndex) => {
+            const a = answer;
+            const checked = Array.isArray(a) ? a.includes(o.id) : a === o.id;
+            return (
+              <label
+                className={`answer-option ${checked ? "chosen" : ""}`}
+                key={o.id}
+              >
+                <input
+                  type={exercise.type === "multiple" ? "checkbox" : "radio"}
+                  name={exercise.id}
+                  checked={checked}
+                  onChange={() => onChange(o.id)}
+                />
+                <span className="option-number">{optionIndex + 1}</span>
+                <span className="option-word">{o.text}</span>
+                <span className="option-check">
+                  {checked ? <Check size={17} /> : null}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </>
   );
 }
 function Student({ token }: { token: string }) {
@@ -1288,16 +1394,13 @@ function Student({ token }: { token: string }) {
   const answered =
     draft && test
       ? test.exercises.filter((e) => {
-          const a = draft.answers[e.id];
-          return Array.isArray(a)
-            ? a.length > 0
-            : typeof a === "string" && a.length > 0;
+          return answerFilled(e, draft.answers[e.id]);
         }).length
       : 0;
-  function choose(value: string) {
+  function choose(value: Answer) {
     if (!draft || !exercise) return;
-    let answer: string | string[] = value;
-    if (exercise.type === "multiple") {
+    let answer: Answer = value;
+    if (exercise.type === "multiple" && typeof value === "string") {
       const old = draft.answers[exercise.id];
       const selected = Array.isArray(old) ? old : [];
       answer = selected.includes(value)
@@ -1358,7 +1461,10 @@ function Student({ token }: { token: string }) {
                   <span>%</span>
                 </strong>
                 <p>
-                  {result.correct} из {result.total} упражнений выполнено верно
+                  {result.correct} из {result.total}{" "}
+                  {result.exercises.some((e) => e.type === "group")
+                    ? "баллов набрано"
+                    : "упражнений выполнено верно"}
                 </p>
               </div>
               <p>Время прохождения: {formatDuration(result.durationSeconds)}</p>
@@ -1401,6 +1507,7 @@ function Student({ token }: { token: string }) {
               <span>
                 <FileCheck2 size={17} />
                 {test?.exerciseCount} упражнений
+                {test.maximumScore ? ` · ${test.maximumScore} баллов` : ""}
               </span>
               <span>
                 <Clock3 size={17} />≈ {estimatedDuration(test)}
@@ -1561,7 +1668,7 @@ function Student({ token }: { token: string }) {
             <div className="question-tabs" aria-label="Упражнения">
               {test?.exercises.map((e, i) => {
                 const a = draft.answers[e.id];
-                const filled = Array.isArray(a) ? a.length > 0 : !!a;
+                const filled = answerFilled(e, a);
                 return (
                   <button
                     aria-label={`Упражнение ${i + 1}${filled ? ", ответ заполнен" : ""}`}
@@ -1586,56 +1693,44 @@ function Student({ token }: { token: string }) {
               <h1>
                 <PromptText text={exercise?.prompt} />
               </h1>
-              {exercise?.type !== "text" && (
-                <p className="question-hint">
-                  {exercise?.type === "multiple"
-                    ? "Выберите все подходящие варианты. Может быть несколько ответов."
-                    : "Выберите один вариант."}
-                </p>
-              )}
-              {exercise?.type === "text" ? (
-                <label className="field-label">
-                  Ваш ответ
-                  <input
-                    placeholder="Без пробелов и запятых, например, 12"
-                    value={
-                      typeof draft.answers[exercise.id] === "string"
-                        ? (draft.answers[exercise.id] as string)
-                        : ""
-                    }
-                    onChange={(e) => choose(e.target.value)}
-                    maxLength={2000}
-                  />
-                </label>
-              ) : (
-                <div className="answer-options">
-                  {exercise?.options?.map((o, optionIndex) => {
-                    const a = draft.answers[exercise.id];
-                    const checked = Array.isArray(a)
-                      ? a.includes(o.id)
-                      : a === o.id;
+              {exercise?.type === "group" ? (
+                <>
+                  <div className="reading-passage">{exercise.passage}</div>
+                  {exercise.items?.map((item) => {
+                    const saved = draft.answers[exercise.id];
+                    const answers =
+                      saved &&
+                      typeof saved === "object" &&
+                      !Array.isArray(saved)
+                        ? saved
+                        : {};
                     return (
-                      <label
-                        className={`answer-option ${checked ? "chosen" : ""}`}
-                        key={o.id}
-                      >
-                        <input
-                          type={
-                            exercise.type === "multiple" ? "checkbox" : "radio"
+                      <section className="reading-task" key={item.id}>
+                        <div className="eyebrow">
+                          ЗАДАНИЕ № {item.taskNumber}
+                        </div>
+                        <h1>
+                          <PromptText text={item.prompt} />
+                        </h1>
+                        <AnswerInput
+                          exercise={item}
+                          answer={answers[item.id]}
+                          onChange={(value) =>
+                            choose({ ...answers, [item.id]: value })
                           }
-                          name={exercise.id}
-                          checked={checked}
-                          onChange={() => choose(o.id)}
                         />
-                        <span className="option-number">{optionIndex + 1}</span>
-                        <span className="option-word">{o.text}</span>
-                        <span className="option-check">
-                          {checked ? <Check size={17} /> : null}
-                        </span>
-                      </label>
+                      </section>
                     );
                   })}
-                </div>
+                </>
+              ) : (
+                exercise && (
+                  <AnswerInput
+                    exercise={exercise}
+                    answer={draft.answers[exercise.id]}
+                    onChange={choose}
+                  />
+                )
               )}
               <ErrorBox message={error} />
               <div className="quiz-controls">

@@ -2,6 +2,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import studentGroups from "../shared/student-groups.json" with { type: "json" };
+import { groupedFixture } from "../tests/fixtures/grouped-test.mjs";
 const db = new PGlite();
 try {
   await db.exec(
@@ -728,6 +729,106 @@ try {
   );
   assert.equal(await digitCheck({ ...digitExercise, key: ["7"] }, "7"), true);
   assert.equal(await digitCheck({ ...digitExercise, key: ["7"] }, "77"), false);
+  await db.exec(
+    readFileSync("supabase/migrations/011_grouped_tasks.sql", "utf8"),
+  );
+  const grouped = groupedFixture();
+  await db.query(
+    "insert into private.tests(version_id,owner_id,data,share_token) values($1,$2,$3::jsonb,$4)",
+    [grouped.versionId, teacher, JSON.stringify(grouped), grouped.shareToken],
+  );
+  await as(student);
+  const publicGroup = await call("get_test", { token: grouped.shareToken });
+  assert.equal(publicGroup.exercises.length, 5);
+  for (const field of ['"key"', '"normalization"', '"correctAnswer"'])
+    assert.ok(!JSON.stringify(publicGroup).includes(field));
+  for (const count of [0, 1, 2, 14, 15]) {
+    let n = 0;
+    const answers = Object.fromEntries(
+      grouped.exercises.map((e) => [
+        e.id,
+        Object.fromEntries(
+          e.items.map((item) => [
+            item.id,
+            n++ < count
+              ? item.type === "multiple"
+                ? ["b"]
+                : item.id === "10"
+                  ? " 321 "
+                  : " ЁЛКА "
+              : item.type === "multiple"
+                ? []
+                : "",
+          ]),
+        ),
+      ]),
+    );
+    const p = await call("start_attempt", {
+      token: grouped.shareToken,
+      name: "SQL группы",
+      groupDay: "monday",
+      groupTime: "18:30",
+    });
+    const r = await call("submit_attempt", {
+      attemptId: p.id,
+      answers,
+      correct: 99,
+      total: 1,
+    });
+    assert.equal(r.total, 15);
+    assert.equal(r.correct, count);
+    assert.equal(r.percentage, Math.round((count / 15) * 100));
+    assert.equal(
+      r.exercises.flatMap((e) => e.items).filter((e) => e.correct).length,
+      count,
+    );
+    assert.equal(r.exercises[0].items[0].rawAnswer, count ? " 321 " : "");
+    assert.deepEqual(
+      await call("submit_attempt", { attemptId: p.id, answers: {} }),
+      r,
+    );
+    await db.exec("reset role");
+    await as(teacher, false);
+    assert.deepEqual(await call("teacher_result", { attemptId: p.id }), r);
+    await db.exec("reset role");
+    await as(student);
+  }
+  const invalidGroup = await call("start_attempt", {
+    token: grouped.shareToken,
+    name: "SQL границы",
+    groupDay: "monday",
+    groupTime: "18:30",
+  });
+  for (const raw of [
+    [],
+    "123",
+    { unknown: "123" },
+    { 10: ["123"] },
+    { 11: ["b", "b"] },
+  ])
+    await assert.rejects(
+      () =>
+        call("submit_attempt", {
+          attemptId: invalidGroup.id,
+          answers: { "text-0": raw },
+        }),
+      /Некоррект|Повторяющиеся/,
+    );
+  assert.equal(
+    (await call("get_attempt", { attemptId: invalidGroup.id })).status,
+    "started",
+  );
+  const partial = await call("submit_attempt", {
+    attemptId: invalidGroup.id,
+    answers: { "text-0": { 10: "123" } },
+  });
+  assert.equal(partial.correct, 1);
+  assert.equal(partial.total, 15);
+  // The migration retains completed legacy results and their stored scores.
+  await db.exec("reset role");
+  await as(teacher, false);
+  assert.deepEqual(await call("teacher_result", { attemptId: next.id }), timed);
+  await db.exec("reset role");
   console.log(
     "Supabase migration verified: grading, RLS boundary, roles, idempotency, direct links, legacy upgrade, immutable versions, reversible result hiding, unread acknowledgement.",
   );

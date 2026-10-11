@@ -2,15 +2,22 @@ export interface Option {
   id: string;
   text: string;
 }
+export type Answer = string | string[] | Record<string, string | string[]>;
 export interface Exercise {
   id: string;
   prompt: string;
-  type: "multiple" | "single" | "text";
+  type: "multiple" | "single" | "text" | "group";
   options?: Option[];
+  passage?: string;
+  items?: Exercise[];
+  taskNumber?: number;
+  answerPlaceholder?: string;
+  score?: number;
+  total?: number;
   key?: string[];
   correctAnswer?: string[];
   explanation?: string;
-  rawAnswer?: string | string[];
+  rawAnswer?: Answer;
   correct?: boolean;
 }
 export interface Test {
@@ -29,6 +36,7 @@ export interface Test {
   source: string;
   exerciseCount: number;
   estimatedDuration?: string;
+  maximumScore?: number;
   exercises: Exercise[];
 }
 export interface Attempt {
@@ -59,6 +67,6 @@ export interface Draft {
   versionId: string;
   name: string;
   group: string | null;
-  answers: Record<string, string | string[]>;
+  answers: Record<string, Answer>;
   position: number;
 }

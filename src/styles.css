@@ -2020,3 +2020,48 @@ td small {
 .test-card-actions .text-button {
   justify-content: center;
 }
+
+/* A shared passage followed by independently scored tasks. */
+.reading-passage {
+  white-space: pre-line;
+  font-family: "Golos Text", system-ui, sans-serif;
+  font-weight: 400;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  margin: 24px 0;
+}
+.question-card .reading-passage,
+.question-card .reading-options {
+  font-size: 19px;
+}
+.reading-task {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+.reading-task > .eyebrow {
+  font-size: 16px;
+}
+.reading-options {
+  padding-left: 26px;
+  line-height: 1.6;
+}
+.reading-options li {
+  margin: 6px 0;
+  padding-left: 3px;
+  overflow-wrap: anywhere;
+}
+.review-item .reading-passage {
+  font-size: 13px;
+}
+@media (min-width: 960px) {
+  .question-card .reading-passage,
+  .question-card .reading-options {
+    font-size: 16px;
+  }
+}
+@media (max-width: 760px) {
+  .review-item .reading-passage {
+    font-size: 12px;
+  }
+}
