@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type CSSProperties,
+} from "react";
 import {
   ArrowUpRight,
   ArrowRight,
@@ -32,7 +38,6 @@ import {
   login,
   logout,
   mode,
-  resetStudent,
   rpc,
   verify,
 } from "./api";
@@ -40,6 +45,8 @@ import type { Attempt, Draft, Exercise, Overview, Test } from "./types";
 import { summarizeResults } from "./results-summary";
 import { formatReviewAnswer } from "./review-answer";
 import studentGroups from "../shared/student-groups.json";
+const groupsForExam = (exam: string | undefined) =>
+  exam === "ЕГЭ" ? studentGroups.ЕГЭ : exam === "ОГЭ" ? studentGroups.ОГЭ : [];
 // Omit the paper answer-sheet instruction in every web view, including history.
 const webPrompt = (text: string | undefined) =>
   text?.replaceAll("Запишите номера ответов.", "").trim();
@@ -1131,6 +1138,7 @@ function Student({ token }: { token: string }) {
     [storageWarning, setStorageWarning] = useState(false),
     [recoveryFailed, setRecoveryFailed] = useState(false);
   const storageKey = `rns-draft:${mode}:${token}`;
+  const groups = groupsForExam(test?.exam);
   const resultKey = `rns-result:${mode}:${token}`;
   const onCaptcha = (value: string) => {
     setCaptcha(value);
@@ -1158,7 +1166,7 @@ function Student({ token }: { token: string }) {
       if (saved?.id) {
         try {
           const p = await rpc<Attempt>("get_attempt", { attemptId: saved.id });
-          const schedule = studentGroups.find((group) =>
+          const schedule = groupsForExam(a.exam).find((group) =>
             group.times.some((time) => `${group.short} ${time}` === p.group),
           );
           setGroupDay(schedule?.day || "");
@@ -1369,7 +1377,6 @@ function Student({ token }: { token: string }) {
                 <span className="exam-tag">Демонстрационный тест</span>
               )}
             </div>
-            <p className="intro-description">{webPrompt(test?.description)}</p>
             <div className="student-test-facts">
               <span>
                 <FileCheck2 size={17} />
@@ -1412,8 +1419,9 @@ function Student({ token }: { token: string }) {
                     className="student-group-description"
                     id="student-group-description"
                   >
-                    Укажи, когда у тебя обычно проходят занятия. Если занимаешься
-                    в разные дни недели, выбери тот, который идёт раньше.
+                    Укажи, когда у тебя обычно проходят занятия. Если
+                    занимаешься в разные дни недели, выбери тот, который идёт
+                    раньше.
                   </p>
                   <p
                     className="student-group-label"
@@ -1425,8 +1433,15 @@ function Student({ token }: { token: string }) {
                     className="student-group-days"
                     role="group"
                     aria-labelledby="student-group-day-label"
+                    style={
+                      {
+                        "--student-group-day-count": groups.length,
+                        "--student-group-mobile-columns":
+                          groups.length === 4 ? 2 : 3,
+                      } as CSSProperties
+                    }
                   >
-                    {studentGroups.map((group) => (
+                    {groups.map((group) => (
                       <button
                         type="button"
                         className="student-group-choice"
@@ -1456,7 +1471,7 @@ function Student({ token }: { token: string }) {
                     aria-labelledby="student-group-time-label"
                   >
                     {groupDay ? (
-                      studentGroups
+                      groups
                         .find((group) => group.day === groupDay)
                         ?.times.map((time) => (
                           <button
@@ -1496,8 +1511,8 @@ function Student({ token }: { token: string }) {
                     recoveryFailed
                   }
                 >
-                  {busy ? <Loader2 size={18} className="spin" /> : null}Начать
-                  практику <ArrowRight size={18} />
+                  {busy ? <Loader2 size={18} className="spin" /> : null}Начать тест
+                  <ArrowRight size={18} />
                 </Button>
               </form>
             )}
@@ -1514,7 +1529,6 @@ function Student({ token }: { token: string }) {
               <span>
                 Выполнено {answered} из {test?.exerciseCount}
               </span>
-              <span>Упражнение {draft.position + 1}</span>
             </div>
             <div className="progress-track">
               <div
@@ -1638,42 +1652,6 @@ function Student({ token }: { token: string }) {
                 : "Черновик сохраняется в этом браузере. Можно вернуться к предыдущим ответам."}
             </p>
           </>
-        )}
-        {test && !draft && (
-          <button
-            className="text-button another-student"
-            onClick={async () => {
-              try {
-                await resetStudent();
-                try {
-                  for (const k of Object.keys(localStorage))
-                    if (
-                      k.startsWith("rns-draft:") ||
-                      k.startsWith("rns-result:")
-                    )
-                      localStorage.removeItem(k);
-                } catch {
-                  setStorageWarning(true);
-                }
-                setDraft(null);
-                setResult(null);
-                setName("");
-                setGroupDay("");
-                setGroupTime("");
-                if (captchaKey) {
-                  setReady(false);
-                  setCaptcha("");
-                  setTest(null);
-                } else {
-                  await load();
-                }
-              } catch (e) {
-                setError(errorText(e));
-              }
-            }}
-          >
-            Другой ученик на этом устройстве
-          </button>
         )}
       </main>
       <footer className="student-footer">

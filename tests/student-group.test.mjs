@@ -8,61 +8,155 @@ const student = { id: "student" };
 const teacher = { id: "teacher", teacher: true };
 
 test("every allowed group persists in drafts, student results and teacher results", () => {
-  const state = initialState();
-  for (const day of schedule) {
-    for (const time of day.times) {
-      const group = `${day.short} ${time}`;
-      const work = execute(
-        state,
-        "start_attempt",
-        {
-          token: state.tests[0].shareToken,
-          name: "Проверка группы",
-          groupDay: day.day,
-          groupTime: time,
-          group: "Подставленная группа",
-        },
-        student,
-      );
-      assert.equal(work.group, group);
-      assert.equal(
-        execute(state, "get_attempt", { attemptId: work.id }, student).group,
-        group,
-      );
-      const result = execute(
-        state,
-        "submit_attempt",
-        {
-          attemptId: work.id,
-          answers: {},
-          group: "ВС 11:30",
-          groupDay: "sunday",
-          groupTime: "11:30",
-        },
-        student,
-      );
-      assert.equal(result.group, group);
-      assert.equal(
-        execute(state, "teacher_result", { attemptId: work.id }, teacher).group,
-        group,
-      );
-      assert.equal(
-        execute(state, "teacher_overview", {}, teacher).results.find(
-          (r) => r.id === work.id,
-        ).group,
-        group,
-      );
-      assert.deepEqual(
-        execute(
+  for (const [exam, days] of Object.entries(schedule)) {
+    const state = initialState();
+    state.tests[0].exam = exam;
+    for (const day of days) {
+      for (const time of day.times) {
+        const group = `${day.short} ${time}`;
+        const work = execute(
+          state,
+          "start_attempt",
+          {
+            token: state.tests[0].shareToken,
+            name: "Проверка группы",
+            groupDay: day.day,
+            groupTime: time,
+            group: "Подставленная группа",
+          },
+          student,
+        );
+        assert.equal(work.group, group);
+        assert.equal(
+          execute(state, "get_attempt", { attemptId: work.id }, student).group,
+          group,
+        );
+        const result = execute(
           state,
           "submit_attempt",
-          { attemptId: work.id, answers: {}, group: "ПТ 18:30" },
+          {
+            attemptId: work.id,
+            answers: {},
+            group: "ВС 11:30",
+            groupDay: "sunday",
+            groupTime: "11:30",
+          },
           student,
-        ),
-        result,
-      );
+        );
+        assert.equal(result.group, group);
+        assert.equal(
+          execute(state, "teacher_result", { attemptId: work.id }, teacher)
+            .group,
+          group,
+        );
+        assert.equal(
+          execute(state, "teacher_overview", {}, teacher).results.find(
+            (r) => r.id === work.id,
+          ).group,
+          group,
+        );
+        assert.deepEqual(
+          execute(
+            state,
+            "submit_attempt",
+            { attemptId: work.id, answers: {}, group: "ПТ 18:30" },
+            student,
+          ),
+          result,
+        );
+      }
     }
   }
+});
+
+test("exam comes from the test: all slots belonging to the other exam are rejected", () => {
+  for (const exam of Object.keys(schedule)) {
+    const state = initialState();
+    state.tests[0].exam = exam;
+    const otherExam = exam === "ЕГЭ" ? "ОГЭ" : "ЕГЭ";
+    const disallowed = schedule[otherExam].flatMap((day) =>
+      day.times.map((time) => ({ groupDay: day.day, groupTime: time })),
+    );
+    disallowed.push({ groupDay: "friday", groupTime: "18:30" });
+    disallowed.push({ groupDay: "friday", groupTime: "17:30" });
+    for (const choice of disallowed) {
+      assert.throws(
+        () =>
+          execute(
+            state,
+            "start_attempt",
+            {
+              token: state.tests[0].shareToken,
+              name: "Проверка экзамена",
+              exam: otherExam,
+              ...choice,
+            },
+            student,
+          ),
+        /Выберите день и время/,
+      );
+      assert.equal(state.attempts.length, 0);
+    }
+  }
+});
+
+test("previously saved groups survive and an old draft can finish with its original group", () => {
+  const state = initialState();
+  const start = () =>
+    execute(
+      state,
+      "start_attempt",
+      {
+        token: state.tests[0].shareToken,
+        name: "Прежняя группа",
+        groupDay: "monday",
+        groupTime: "17:30",
+      },
+      student,
+    );
+  const submitted = start();
+  state.attempts[0].group = "ПТ 17:30";
+  const saved = execute(
+    state,
+    "submit_attempt",
+    { attemptId: submitted.id, answers: {} },
+    student,
+  );
+  const draft = start();
+  state.attempts[1].group = "ПТ 17:30";
+  state.attempts[1].teacherSeen = false;
+  const before = structuredClone(state.attempts);
+  migrateState(state);
+  assert.deepEqual(state.attempts, before);
+  assert.deepEqual(
+    execute(state, "teacher_result", { attemptId: submitted.id }, teacher),
+    saved,
+  );
+  assert.equal(
+    execute(state, "get_attempt", { attemptId: draft.id }, student).group,
+    "ПТ 17:30",
+  );
+  const result = execute(
+    state,
+    "submit_attempt",
+    {
+      attemptId: draft.id,
+      answers: {},
+      groupDay: "monday",
+      groupTime: "17:30",
+    },
+    student,
+  );
+  assert.equal(result.group, "ПТ 17:30");
+  assert.deepEqual(
+    execute(
+      state,
+      "submit_attempt",
+      { attemptId: draft.id, answers: {} },
+      student,
+    ),
+    result,
+  );
 });
 
 test("missing, unknown or mismatched day/time cannot create a work", () => {

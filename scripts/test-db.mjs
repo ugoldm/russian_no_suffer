@@ -500,7 +500,7 @@ try {
       /Выберите день и время/,
     );
   }
-  for (const day of studentGroups) {
+  for (const day of Object.values(studentGroups).flat()) {
     for (const time of day.times) {
       const group = `${day.short} ${time}`;
       const work = await call("start_attempt", {
@@ -544,6 +544,146 @@ try {
       );
       await db.exec("reset role");
       await as(student);
+    }
+  }
+  // Create historical groups through the previous API, then migrate without rewriting them.
+  const oldSavedWork = await call("start_attempt", {
+    token: direct.shareToken,
+    name: "Прежняя группа",
+    groupDay: "friday",
+    groupTime: "18:30",
+  });
+  const oldSavedResult = await call("submit_attempt", {
+    attemptId: oldSavedWork.id,
+    answers: {},
+  });
+  const oldGroupDraft = await call("start_attempt", {
+    token: direct.shareToken,
+    name: "Прежний черновик",
+    groupDay: "monday",
+    groupTime: "18:30",
+  });
+  await db.exec("reset role");
+  await db.exec(
+    readFileSync("supabase/migrations/008_exam_group_schedule.sql", "utf8"),
+  );
+  await db.query(
+    `insert into private.tests(version_id,owner_id,data,share_token)
+    select 'oge-schedule-synthetic-v1',$1,
+      data || jsonb_build_object('id','oge-schedule-synthetic','versionId','oge-schedule-synthetic-v1','exam','ОГЭ','demo',true),
+      'oge-schedule-synthetic-token' from private.tests where version_id=$2`,
+    [teacher, direct.versionId],
+  );
+  await as(student);
+  assert.deepEqual(
+    await call("get_attempt", { attemptId: oldSavedWork.id }),
+    oldSavedResult,
+  );
+  assert.equal(
+    (await call("get_attempt", { attemptId: oldGroupDraft.id })).group,
+    "ПН 18:30",
+  );
+  assert.equal(
+    (await call("submit_attempt", { attemptId: oldGroupDraft.id, answers: {} }))
+      .group,
+    "ПН 18:30",
+  );
+  await assert.rejects(
+    () => db.query("select private.student_group('ЕГЭ','monday','17:30')"),
+    /permission denied/,
+  );
+  await db.exec("reset role");
+  await as(other);
+  const fridayWork = await call("start_attempt", {
+    token: direct.shareToken,
+    name: "Прежняя пятничная группа",
+    groupDay: "friday",
+    groupTime: "17:30",
+  });
+  const fridayResult = await call("submit_attempt", {
+    attemptId: fridayWork.id,
+    answers: {},
+  });
+  const fridayDraft = await call("start_attempt", {
+    token: direct.shareToken,
+    name: "Прежний пятничный черновик",
+    groupDay: "friday",
+    groupTime: "17:30",
+  });
+  await db.exec("reset role");
+  await db.exec(
+    readFileSync("supabase/migrations/009_remove_friday_group.sql", "utf8"),
+  );
+  await as(other);
+  assert.deepEqual(
+    await call("get_attempt", { attemptId: fridayWork.id }),
+    fridayResult,
+  );
+  assert.equal(
+    (await call("get_attempt", { attemptId: fridayDraft.id })).group,
+    "ПТ 17:30",
+  );
+  assert.equal(
+    (await call("submit_attempt", { attemptId: fridayDraft.id, answers: {} }))
+      .group,
+    "ПТ 17:30",
+  );
+  for (const [exam, days] of Object.entries(studentGroups)) {
+    const token =
+      exam === "ЕГЭ" ? direct.shareToken : "oge-schedule-synthetic-token";
+    const otherExam = exam === "ЕГЭ" ? "ОГЭ" : "ЕГЭ";
+    const invalid = studentGroups[otherExam].flatMap((day) =>
+      day.times.map((time) => ({ groupDay: day.day, groupTime: time })),
+    );
+    invalid.push({ groupDay: "friday", groupTime: "18:30" });
+    invalid.push({ groupDay: "friday", groupTime: "17:30" });
+    for (const choice of invalid) {
+      await assert.rejects(
+        () =>
+          call("start_attempt", {
+            token,
+            name: "Проверка границ экзамена",
+            exam: otherExam,
+            ...choice,
+          }),
+        /Выберите день и время/,
+      );
+    }
+    for (const day of days) {
+      for (const time of day.times) {
+        const work = await call("start_attempt", {
+          token,
+          name: "Проверка расписания",
+          groupDay: day.day,
+          groupTime: time,
+          exam: otherExam,
+        });
+        const group = `${day.short} ${time}`;
+        assert.equal(work.group, group);
+        assert.equal(
+          (await call("get_attempt", { attemptId: work.id })).group,
+          group,
+        );
+        const result = await call("submit_attempt", {
+          attemptId: work.id,
+          answers: {},
+          group: "Подмена",
+        });
+        assert.equal(result.group, group);
+        await db.exec("reset role");
+        await as(teacher, false);
+        assert.equal(
+          (await call("teacher_result", { attemptId: work.id })).group,
+          group,
+        );
+        assert.equal(
+          (await call("teacher_overview")).results.find((r) => r.id === work.id)
+            .group,
+          group,
+        );
+        await db.exec("reset role");
+        await as(other);
+      }
     }
   }
   console.log(

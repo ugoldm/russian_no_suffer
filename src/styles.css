@@ -1069,17 +1069,13 @@ td small {
   color: #728963;
   transform: rotate(-6deg);
 }
-.intro-description {
-  color: #829076;
-  font-size: 13px;
-  margin: 17px 0 20px;
-}
 .student-test-facts {
   display: flex;
   gap: 21px;
   flex-wrap: wrap;
   color: #87957a;
   font-size: 11px;
+  margin-top: 20px;
   padding: 18px 0;
   border-top: 1px solid #edf0e7;
   border-bottom: 1px solid #edf0e7;
@@ -1127,7 +1123,10 @@ td small {
 }
 .student-group-days {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(
+    var(--student-group-day-count, 6),
+    minmax(0, 1fr)
+  );
   gap: 8px;
 }
 .student-group-times {
@@ -1165,7 +1164,10 @@ td small {
 }
 @media (max-width: 480px) {
   .student-group-days {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(
+      var(--student-group-mobile-columns, 3),
+      minmax(0, 1fr)
+    );
   }
 }
 .student-footer {
@@ -1176,12 +1178,6 @@ td small {
 }
 .student-footer span {
   padding: 0 8px;
-}
-.another-student {
-  display: flex;
-  margin: 19px auto;
-  font-size: 11px;
-  color: #94a085;
 }
 @media (min-width: 960px) {
   .student-page-intro .student-header {
@@ -1220,11 +1216,9 @@ td small {
     margin: 0 0 0 auto;
     flex-shrink: 0;
   }
-  .student-page-intro .intro-description {
-    margin: 12px 0;
-  }
   .student-page-intro .student-test-facts {
-    padding: 10px 0;
+    margin-top: 16px;
+    padding: 8px 0;
   }
   .student-page-intro .student-start-form {
     display: grid;
@@ -1251,9 +1245,6 @@ td small {
   .student-page-intro .student-start-form > .button {
     margin-top: 0;
   }
-  .student-page-intro .another-student {
-    margin: 4px auto;
-  }
   .student-page-intro .student-footer {
     padding: 5px 12px;
   }
@@ -1270,8 +1261,8 @@ td small {
     border-radius: 11px;
   }
   .student-page-intro .student-main {
-    margin-top: 8px;
-    margin-bottom: 6px;
+    margin-top: 6px;
+    margin-bottom: 2px;
   }
   .student-page-intro .student-intro {
     padding: 18px;
@@ -1280,12 +1271,8 @@ td small {
     width: 38px;
     height: 38px;
   }
-  .student-page-intro .intro-description {
-    margin: 8px 0;
-    font-size: 12px;
-  }
   .student-page-intro .student-test-facts {
-    padding: 6px 0;
+    padding: 4px 0;
   }
   .student-page-intro .student-start-form {
     gap: 16px;
@@ -1296,9 +1283,6 @@ td small {
   }
   .student-page-intro .student-group-label {
     margin-top: 12px;
-  }
-  .student-page-intro .another-student {
-    margin: 0 auto;
   }
   .student-page-intro .student-footer {
     padding: 0 8px;
@@ -1773,9 +1757,6 @@ td small {
   }
   .student-illustration svg {
     width: 42px;
-  }
-  .intro-description {
-    font-size: 12px;
   }
   .student-test-facts {
     gap: 12px;

@@ -1,33 +1,50 @@
-[
-  {
-    "day": "monday",
-    "label": "Понедельник",
-    "short": "ПН",
-    "times": ["17:30", "18:30", "19:30"]
-  },
-  {
-    "day": "tuesday",
-    "label": "Вторник",
-    "short": "ВТ",
-    "times": ["11:00", "16:30", "18:00", "19:30"]
-  },
-  {
-    "day": "wednesday",
-    "label": "Среда",
-    "short": "СР",
-    "times": ["17:00", "18:30", "19:30"]
-  },
-  {
-    "day": "thursday",
-    "label": "Четверг",
-    "short": "ЧТ",
-    "times": ["17:00", "18:00", "19:30"]
-  },
-  {
-    "day": "friday",
-    "label": "Пятница",
-    "short": "ПТ",
-    "times": ["17:30", "18:30"]
-  },
-  { "day": "sunday", "label": "Воскресенье", "short": "ВС", "times": ["11:30"] }
-]
+{
+  "ОГЭ": [
+    {
+      "day": "monday",
+      "label": "Понедельник",
+      "short": "ПН",
+      "times": ["18:30"]
+    },
+    { "day": "tuesday", "label": "Вторник", "short": "ВТ", "times": ["18:00"] },
+    { "day": "wednesday", "label": "Среда", "short": "СР", "times": ["18:30"] },
+    {
+      "day": "thursday",
+      "label": "Четверг",
+      "short": "ЧТ",
+      "times": ["17:00", "18:00"]
+    }
+  ],
+  "ЕГЭ": [
+    {
+      "day": "monday",
+      "label": "Понедельник",
+      "short": "ПН",
+      "times": ["17:30", "19:30"]
+    },
+    {
+      "day": "tuesday",
+      "label": "Вторник",
+      "short": "ВТ",
+      "times": ["11:00", "16:30", "19:30"]
+    },
+    {
+      "day": "wednesday",
+      "label": "Среда",
+      "short": "СР",
+      "times": ["17:00", "19:30"]
+    },
+    {
+      "day": "thursday",
+      "label": "Четверг",
+      "short": "ЧТ",
+      "times": ["19:30"]
+    },
+    {
+      "day": "sunday",
+      "label": "Воскресенье",
+      "short": "ВС",
+      "times": ["11:30"]
+    }
+  ]
+}

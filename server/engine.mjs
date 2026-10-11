@@ -15,8 +15,9 @@ const cleanName = (value) => {
     throw new AppError("Введите имя от 1 до 80 символов.");
   return value.trim();
 };
-const cleanGroup = (day, time) => {
-  const schedule = studentGroups.find((group) => group.day === day);
+const cleanGroup = (exam, day, time) => {
+  const groups = Object.hasOwn(studentGroups, exam) ? studentGroups[exam] : [];
+  const schedule = groups.find((group) => group.day === day);
   if (!schedule || !schedule.times.includes(time))
     throw new AppError("Выберите день и время занятий из списка.");
   return `${schedule.short} ${time}`;
@@ -241,7 +242,7 @@ export function execute(state, action, args, actor) {
         versionId: t.versionId,
         ownerId: actor.id,
         name: cleanName(args.name),
-        group: cleanGroup(args.groupDay, args.groupTime),
+        group: cleanGroup(t.exam, args.groupDay, args.groupTime),
         status: "started",
         startedAt: now,
         submittedAt: null,
