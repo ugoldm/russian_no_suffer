@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import type { Overview } from "./types";
 export const mode = import.meta.env.VITE_APP_MODE || "demo";
 if (!["demo", "supabase"].includes(mode))
   throw new Error("Неизвестный режим приложения.");
@@ -22,6 +23,19 @@ const student =
     : null;
 export const captchaKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
 let studentSignIn: Promise<void> | null = null;
+export async function teacherOverview(): Promise<Overview | null> {
+  if (mode === "supabase") {
+    if (!teacher)
+      throw new Error("Supabase ещё не подключён. Проверьте настройки проекта.");
+    const {
+      data: { session },
+      error,
+    } = await teacher.auth.getSession();
+    if (error) throw new Error(error.message);
+    if (!session) return null;
+  }
+  return rpc<Overview>("teacher_overview");
+}
 export async function rpc<T>(
   action: string,
   args: Record<string, unknown> = {},

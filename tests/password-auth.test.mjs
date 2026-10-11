@@ -9,6 +9,7 @@ test("password login sends credentials only to Auth and keeps student sessions s
   const originalFetch = globalThis.fetch;
   const requests = [];
   let loginError = null;
+  let overviewError = null;
   const session = (id, anonymous = false) => {
     const encode = (value) =>
       Buffer.from(JSON.stringify(value)).toString("base64url");
@@ -34,6 +35,8 @@ test("password login sends credentials only to Auth and keeps student sessions s
     }
     if (url.pathname === "/auth/v1/signup")
       return new Response(JSON.stringify(session("student", true)));
+    if (url.pathname === "/rest/v1/rpc/teacher_overview" && overviewError)
+      return new Response(JSON.stringify(overviewError), { status: 403 });
     if (url.pathname.startsWith("/rest/v1/rpc/"))
       return new Response(JSON.stringify({ ok: true }));
     if (url.pathname === "/auth/v1/logout")
@@ -61,6 +64,8 @@ test("password login sends credentials only to Auth and keeps student sessions s
     const api = await import(
       `data:text/javascript;base64,${Buffer.from(code + "\n//# sourceURL=password-auth-api.mjs").toString("base64")}`
     );
+    assert.equal(await api.teacherOverview(), null);
+    assert.equal(requests.length, 0, "No teacher request before login");
     loginError = {
       code: "invalid_credentials",
       message: "Invalid login credentials",
@@ -87,7 +92,7 @@ test("password login sends credentials only to Auth and keeps student sessions s
       credentials.gotrue_meta_security.captcha_token,
       "teacher-captcha",
     );
-    await api.rpc("teacher_overview");
+    await api.teacherOverview();
     const teacherRequest = requests.at(-1);
     assert.deepEqual(teacherRequest.body, { p_args: {} });
     await api.rpc("get_test", {
@@ -105,7 +110,23 @@ test("password login sends credentials only to Auth and keeps student sessions s
     assert.ok(
       requests.every((request) => !/otp|verify/.test(request.url.pathname)),
     );
+    overviewError = {
+      code: "42501",
+      message: "Доступ только для преподавателя.",
+    };
+    await assert.rejects(
+      () => api.teacherOverview(),
+      /Доступ только для преподавателя/,
+    );
+    overviewError = null;
     await api.logout();
+    const countAfterLogout = requests.length;
+    assert.equal(await api.teacherOverview(), null);
+    assert.equal(
+      requests.length,
+      countAfterLogout,
+      "No teacher request after logout",
+    );
     await api.resetStudent();
   } finally {
     globalThis.fetch = originalFetch;

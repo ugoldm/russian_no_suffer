@@ -33,7 +33,7 @@ import {
   Eye,
   Undo2,
 } from "lucide-react";
-import { captchaKey, login, logout, mode, rpc } from "./api";
+import { captchaKey, login, logout, mode, rpc, teacherOverview } from "./api";
 import type { Answer, Attempt, Draft, Exercise, Overview, Test } from "./types";
 import { summarizeResults } from "./results-summary";
 import { formatReviewAnswer } from "./review-answer";
@@ -249,7 +249,7 @@ function Teacher() {
     const version = overviewVersion.current;
     if (!background) setLoading(true);
     try {
-      const data = await rpc<Overview>("teacher_overview");
+      const data = await teacherOverview();
       if (
         request !== refreshRequest.current ||
         version !== overviewVersion.current
