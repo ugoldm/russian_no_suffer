@@ -1289,7 +1289,7 @@ function Student({ token }: { token: string }) {
   }
   return (
     <div
-      className={`student-page ${ready && !loading && test && !draft && !result ? "student-page-intro" : ""}`}
+      className={`student-page ${ready && !loading && test && !result ? (draft ? "student-page-quiz" : "student-page-intro") : ""}`}
     >
       <header className="student-header">
         <Brand />

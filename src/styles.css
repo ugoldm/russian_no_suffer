@@ -1456,6 +1456,140 @@ td small {
   margin-top: 19px;
   text-align: center;
 }
+@media (min-width: 960px) {
+  .student-page-quiz .student-header {
+    height: 64px;
+    padding: 10px 45px;
+    flex-shrink: 0;
+  }
+  .student-page-quiz .student-main {
+    width: min(900px, calc(100% - 48px));
+    margin: 16px auto 10px;
+  }
+  .student-page-quiz .quiz-heading {
+    margin-bottom: 20px;
+  }
+  .student-page-quiz .quiz-heading h2 {
+    margin-top: 0;
+    font-size: 18px;
+  }
+  .student-page-quiz .student-name {
+    padding: 6px 11px;
+    max-width: 240px;
+  }
+  .student-page-quiz .progress-head {
+    margin-bottom: 6px;
+  }
+  .student-page-quiz .question-tabs {
+    gap: 6px;
+    margin: 20px 0;
+  }
+  .student-page-quiz .question-tabs button {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+  }
+  .student-page-quiz .question-card {
+    padding: 22px;
+  }
+  .student-page-quiz .question-card h1 {
+    font-size: 20px;
+    line-height: 1.35;
+    letter-spacing: -0.4px;
+  }
+  .student-page-quiz .question-hint {
+    margin-top: 10px;
+    margin-bottom: 20px;
+  }
+  .student-page-quiz .answer-options {
+    gap: 8px;
+  }
+  .student-page-quiz .answer-option {
+    min-height: 44px;
+    padding: 9px 12px;
+    gap: 10px;
+  }
+  .student-page-quiz .option-word {
+    font-size: 16px;
+    line-height: 1.4;
+    letter-spacing: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .student-page-quiz .option-number {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+  .student-page-quiz .option-check {
+    width: 19px;
+    height: 19px;
+    flex-shrink: 0;
+  }
+  .student-page-quiz .quiz-controls {
+    margin-top: 20px;
+    padding-top: 16px;
+  }
+  .student-page-quiz .autosave {
+    margin-top: 14px;
+  }
+  .student-page-quiz .student-footer {
+    padding: 8px 20px;
+  }
+}
+@media (min-width: 960px) and (max-height: 800px) {
+  .student-page-quiz .student-header {
+    height: 52px;
+    padding: 6px 45px;
+  }
+  .student-page-quiz .student-header .brand-mark {
+    width: 34px;
+    height: 34px;
+  }
+  .student-page-quiz .student-main {
+    margin: 10px auto 6px;
+  }
+  .student-page-quiz .question-card {
+    padding: 17px 20px;
+  }
+  .student-page-quiz .question-card .eyebrow {
+    margin-bottom: 12px;
+  }
+  .student-page-quiz .student-footer {
+    padding: 4px 20px;
+  }
+}
+@media (min-width: 960px) and (max-height: 760px) {
+  .student-page-quiz .quiz-heading {
+    margin-bottom: 10px;
+  }
+  .student-page-quiz .question-tabs {
+    margin: 12px 0;
+  }
+  .student-page-quiz .question-card {
+    padding: 14px 20px;
+  }
+  .student-page-quiz .question-card h1 {
+    font-size: 18px;
+  }
+  .student-page-quiz .question-hint {
+    margin-top: 6px;
+    margin-bottom: 12px;
+  }
+  .student-page-quiz .answer-options {
+    gap: 4px;
+  }
+  .student-page-quiz .quiz-controls {
+    margin-top: 12px;
+    padding-top: 10px;
+  }
+  .student-page-quiz .autosave {
+    margin-top: 10px;
+  }
+  .student-page-quiz .student-footer {
+    padding: 3px 20px;
+  }
+}
 .result-hero {
   text-align: center;
   background: #fff;
