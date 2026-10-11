@@ -33,7 +33,7 @@ import {
   Eye,
   Undo2,
 } from "lucide-react";
-import { captchaKey, login, logout, mode, rpc, verify } from "./api";
+import { captchaKey, login, logout, mode, rpc } from "./api";
 import type { Answer, Attempt, Draft, Exercise, Overview, Test } from "./types";
 import { summarizeResults } from "./results-summary";
 import { formatReviewAnswer } from "./review-answer";
@@ -905,26 +905,25 @@ function TeacherLogin({
   onSuccess: () => Promise<void>;
 }) {
   const [email, setEmail] = useState(""),
-    [code, setCode] = useState(""),
-    [sent, setSent] = useState(false),
+    [password, setPassword] = useState(""),
     [busy, setBusy] = useState(false),
     [localError, setLocalError] = useState(""),
-    [captcha, setCaptcha] = useState("");
+    [captcha, setCaptcha] = useState(""),
+    [captchaAttempt, setCaptchaAttempt] = useState(0);
   async function submit() {
+    if (busy) return;
     setBusy(true);
     setLocalError("");
     try {
-      if (sent) {
-        await verify(email, code);
-        await onSuccess();
-      } else {
-        await login(email, captcha);
-        if (mode === "demo") await onSuccess();
-        else setSent(true);
-      }
+      await login(email, password, captcha);
+      setPassword("");
+      await onSuccess();
     } catch (e) {
       setLocalError(errorText(e));
     } finally {
+      // Turnstile tokens are single-use, including after a failed login.
+      setCaptcha("");
+      setCaptchaAttempt((value) => value + 1);
       setBusy(false);
     }
   }
@@ -965,40 +964,29 @@ function TeacherLogin({
                   Email преподавателя
                   <input
                     type="email"
-                    autoComplete="email"
+                    name="email"
+                    autoComplete="username"
                     required
-                    disabled={sent}
+                    disabled={busy}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.com"
                   />
                 </label>
-                {sent && (
-                  <>
-                    <label className="field-label">
-                      Код из письма
-                      <input
-                        required
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        value={code}
-                        onChange={(e) => setCode(e.target.value.trim())}
-                        placeholder="Введите код"
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="text-button"
-                      onClick={() => {
-                        setSent(false);
-                        setCode("");
-                      }}
-                    >
-                      Запросить новый код
-                    </button>
-                  </>
-                )}
-                <Captcha onToken={setCaptcha} />
+                <label className="field-label">
+                  Пароль
+                  <input
+                    type="password"
+                    name="password"
+                    autoComplete="current-password"
+                    required
+                    disabled={busy}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Введите пароль"
+                  />
+                </label>
+                <Captcha key={captchaAttempt} onToken={setCaptcha} />
               </>
             )}
             <ErrorBox
@@ -1008,15 +996,13 @@ function TeacherLogin({
               type="submit"
               disabled={
                 busy ||
-                (mode === "supabase" && !sent && !!captchaKey && !captcha)
+                (mode === "supabase" && !!captchaKey && !captcha)
               }
             >
               {busy ? <Loader2 className="spin" size={18} /> : null}
               {mode === "demo"
                 ? "Открыть демонстрационный кабинет"
-                : sent
-                  ? "Войти"
-                  : "Получить код на почту"}
+                : "Войти"}
               <ArrowRight size={18} />
             </Button>
           </form>

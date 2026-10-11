@@ -10,6 +10,7 @@
     "build": "tsc -b && vite build",
     "test": "node --test tests/*.test.mjs",
     "test:db": "node scripts/test-db.mjs",
+    "supabase:setup": "node scripts/supabase-setup.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "import:sql": "node scripts/import-sql.mjs",
     "import:local": "node scripts/import-local.mjs"

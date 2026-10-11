@@ -80,23 +80,25 @@ export async function rpc<T>(
   if (error) throw new Error(error.message);
   return data as T;
 }
-export async function login(email: string, captchaToken?: string) {
+export async function login(
+  email: string,
+  password: string,
+  captchaToken?: string,
+) {
   if (mode === "demo") return rpc("demo_login");
   if (!teacher) throw new Error("Supabase ещё не подключён.");
-  const { error } = await teacher.auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: false, captchaToken },
+  const { error } = await teacher.auth.signInWithPassword({
+    email: email.trim(),
+    password,
+    options: { captchaToken },
   });
+  if (error?.code === "invalid_credentials")
+    throw new Error("Неверный email или пароль.");
+  if (error?.code === "email_not_confirmed")
+    throw new Error(
+      "Email преподавателя не подтверждён. Подтвердите аккаунт в Supabase.",
+    );
   if (error) throw new Error(error.message);
-}
-export async function verify(email: string, token: string) {
-  if (!teacher) throw new Error("Supabase ещё не подключён.");
-  const { error } = await teacher.auth.verifyOtp({
-    email,
-    token,
-    type: "email",
-  });
-  if (error) throw new Error("Код не подошёл или истёк. Запросите новый.");
 }
 export async function logout() {
   if (mode === "demo") await rpc("demo_logout");
