@@ -379,8 +379,7 @@ button {
   box-shadow: 0 3px 4px #2b4e3410;
   overflow: hidden;
   min-width: 0;
-  grid-column: span 2;
-  max-width: 590px;
+  grid-column: span 1;
 }
 .exam-tag {
   display: inline-flex;
@@ -459,7 +458,8 @@ button {
 }
 .test-facts {
   display: flex;
-  gap: 22px;
+  flex-wrap: wrap;
+  gap: 10px 22px;
   margin-top: 19px;
   margin-bottom: 22px;
   font-size: 10px;
@@ -1714,18 +1714,6 @@ td small {
   margin-top: 20px;
 }
 @media (min-width: 1450px) {
-  .test-card {
-    max-width: none;
-  }
-  .test-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-  .test-card {
-    grid-column: span 1;
-  }
-  .next-test {
-    grid-column: span 1;
-  }
   .main-content {
     padding-top: 46px;
   }
