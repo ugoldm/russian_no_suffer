@@ -1,3 +1,4 @@
+import { filledAnswers } from "./fixtures/filled-answers.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { initialState } from "../server/demo-content.mjs";
@@ -26,7 +27,7 @@ test("read acknowledgement is secure, snapshot-based, idempotent and preserves r
       "submit_attempt",
       {
         attemptId: work.id,
-        answers: {},
+        answers: filledAnswers(state.tests[0]),
         teacherSeen: true,
       },
       student,
@@ -98,7 +99,7 @@ test("legacy results start as seen; submitting an older draft still makes new un
   execute(
     state,
     "submit_attempt",
-    { attemptId: first.id, answers: {} },
+    { attemptId: first.id, answers: filledAnswers(state.tests[0]) },
     student,
   );
   delete state.attempts[0].teacherSeen;
@@ -121,7 +122,7 @@ test("legacy results start as seen; submitting an older draft still makes new un
   execute(
     state,
     "submit_attempt",
-    { attemptId: draft.id, answers: {} },
+    { attemptId: draft.id, answers: filledAnswers(state.tests[0]) },
     student,
   );
   assert.equal(

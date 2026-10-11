@@ -53,8 +53,8 @@ test("five passages award fifteen independent points including partial passages"
                   ? " 321 "
                   : " ЁЛКА "
               : item.type === "multiple"
-                ? []
-                : "",
+                ? ["a"]
+                : "неверно",
           ]),
         ),
       ]),
@@ -68,12 +68,11 @@ test("five passages award fifteen independent points including partial passages"
       r.exercises.flatMap((e) => e.items).filter((e) => e.correct).length,
       count,
     );
-    assert.equal(r.exercises[0].items[0].rawAnswer, count ? " 321 " : "");
+    assert.equal(
+      r.exercises[0].items[0].rawAnswer,
+      count ? " 321 " : "неверно",
+    );
   }
-  const r = work(t, { "text-0": { 10: "123" } });
-  assert.equal(r.correct, 1);
-  assert.equal(r.exercises[0].score, 1);
-  assert.equal(r.exercises[0].total, 3);
 });
 test("nested keys are private and malformed child answers cannot save work", () => {
   const t = groupedFixture(),

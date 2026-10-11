@@ -1366,7 +1366,43 @@ td small {
   border-color: #c9dcbc;
   color: #72915b;
 }
+.question-tabs button.missing {
+  position: relative;
+  border: 2px solid #ad4237;
+  color: #ad4237;
+  background: #fff2ed;
+}
+.question-tabs button.missing.current {
+  color: white;
+  background: #255746;
+}
+.missing-marker {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ad4237;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+}
+.missing-list {
+  margin: 16px 0 24px;
+  padding-left: 22px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.missing-list .text-button {
+  min-height: 44px;
+  text-align: left;
+}
+.question-card input[aria-invalid="true"] {
+  border-color: #ad4237;
+}
 .question-card {
+  scroll-margin-top: 20px;
   background: white;
   border: 1px solid var(--border);
   border-radius: 17px;

@@ -1,4 +1,8 @@
 import { randomUUID, randomBytes } from "node:crypto";
+import {
+  missingAnswers,
+  missingAnswersMessage,
+} from "../shared/answer-completeness.mjs";
 import studentGroups from "../shared/student-groups.json" with { type: "json" };
 export class AppError extends Error {
   constructor(message, status = 400) {
@@ -333,6 +337,8 @@ export function execute(state, action, args, actor) {
       const answers = t.exercises.flatMap((e) =>
         scoredAnswers(e, args.answers[e.id]),
       );
+      const missing = missingAnswers(t.exercises, args.answers);
+      if (missing.length) throw new AppError(missingAnswersMessage(missing));
       const correct = answers.filter(({ exercise, raw }) =>
         grade(exercise, raw),
       ).length;

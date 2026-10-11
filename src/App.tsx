@@ -37,6 +37,10 @@ import { captchaKey, login, logout, mode, rpc, verify } from "./api";
 import type { Answer, Attempt, Draft, Exercise, Overview, Test } from "./types";
 import { summarizeResults } from "./results-summary";
 import { formatReviewAnswer } from "./review-answer";
+import {
+  answerFilled,
+  missingAnswers,
+} from "../shared/answer-completeness.mjs";
 import studentGroups from "../shared/student-groups.json";
 const groupsForExam = (exam: string | undefined) =>
   exam === "ЕГЭ" ? studentGroups.ЕГЭ : exam === "ОГЭ" ? studentGroups.ОГЭ : [];
@@ -1167,26 +1171,16 @@ function Review({
     </div>
   );
 }
-function answerFilled(exercise: Exercise, answer: Answer | undefined): boolean {
-  if (exercise.type === "group")
-    return (
-      !!answer &&
-      typeof answer === "object" &&
-      !Array.isArray(answer) &&
-      !!exercise.items?.every((item) => answerFilled(item, answer[item.id]))
-    );
-  return Array.isArray(answer)
-    ? answer.length > 0
-    : typeof answer === "string" && answer.length > 0;
-}
 function AnswerInput({
   exercise,
   answer,
   onChange,
+  missing = false,
 }: {
   exercise: Exercise;
   answer: Answer | undefined;
-  onChange: (value: string) => void;
+  onChange: (value: string | string[]) => void;
+  missing?: boolean;
 }) {
   return (
     <>
@@ -1219,6 +1213,8 @@ function AnswerInput({
             value={typeof answer === "string" ? (answer as string) : ""}
             onChange={(e) => onChange(e.target.value)}
             maxLength={2000}
+            aria-invalid={missing || undefined}
+            aria-describedby={missing ? `missing-${exercise.id}` : undefined}
           />
         </label>
       ) : (
@@ -1234,8 +1230,23 @@ function AnswerInput({
                 <input
                   type={exercise.type === "multiple" ? "checkbox" : "radio"}
                   name={exercise.id}
+                  aria-invalid={missing || undefined}
+                  aria-describedby={
+                    missing ? `missing-${exercise.id}` : undefined
+                  }
                   checked={checked}
-                  onChange={() => onChange(o.id)}
+                  onChange={() => {
+                    if (exercise.type === "multiple") {
+                      const selected = Array.isArray(answer) ? answer : [];
+                      onChange(
+                        selected.includes(o.id)
+                          ? selected.filter((id) => id !== o.id)
+                          : [...selected, o.id],
+                      );
+                    } else {
+                      onChange(o.id);
+                    }
+                  }}
                 />
                 <span className="option-number">{optionIndex + 1}</span>
                 <span className="option-word">{o.text}</span>
@@ -1261,10 +1272,34 @@ function Student({ token }: { token: string }) {
     [result, setResult] = useState<Attempt | null>(null),
     [busy, setBusy] = useState(false),
     [confirm, setConfirm] = useState(false),
+    [showMissing, setShowMissing] = useState(false),
+    [validationAttempted, setValidationAttempted] = useState(false),
     [captcha, setCaptcha] = useState(""),
     [ready, setReady] = useState(!captchaKey),
     [storageWarning, setStorageWarning] = useState(false),
     [recoveryFailed, setRecoveryFailed] = useState(false);
+  const questionRef = useRef<HTMLElement>(null);
+  const missing =
+    draft && test ? missingAnswers(test.exercises, draft.answers) : [];
+  function returnToMissing(position = missing[0]?.position) {
+    setShowMissing(false);
+    if (!draft || position === undefined) return;
+    setDraft({ ...draft, position });
+    requestAnimationFrame(() => {
+      questionRef.current?.focus({ preventScroll: true });
+      questionRef.current?.scrollIntoView({
+        block: "start",
+        behavior: "smooth",
+      });
+    });
+  }
+  function checkComplete() {
+    setValidationAttempted(true);
+    if (!missing.length) return true;
+    setConfirm(false);
+    setShowMissing(true);
+    return false;
+  }
   const storageKey = `rns-draft:${mode}:${token}`;
   const groups = groupsForExam(test?.exam);
   const resultKey = `rns-result:${mode}:${token}`;
@@ -1354,6 +1389,7 @@ function Student({ token }: { token: string }) {
         { token, name, groupDay, groupTime },
       );
       setDraft({ ...p, answers: {}, position: 0 });
+      setValidationAttempted(false);
       setResult(null);
       try {
         localStorage.removeItem(resultKey);
@@ -1367,7 +1403,7 @@ function Student({ token }: { token: string }) {
     }
   }
   async function submit() {
-    if (!draft) return;
+    if (!draft || !checkComplete()) return;
     setConfirm(false);
     setBusy(true);
     setError("");
@@ -1399,17 +1435,9 @@ function Student({ token }: { token: string }) {
       : 0;
   function choose(value: Answer) {
     if (!draft || !exercise) return;
-    let answer: Answer = value;
-    if (exercise.type === "multiple" && typeof value === "string") {
-      const old = draft.answers[exercise.id];
-      const selected = Array.isArray(old) ? old : [];
-      answer = selected.includes(value)
-        ? selected.filter((x) => x !== value)
-        : [...selected, value];
-    }
     setDraft({
       ...draft,
-      answers: { ...draft.answers, [exercise.id]: answer },
+      answers: { ...draft.answers, [exercise.id]: value },
     });
   }
   return (
@@ -1671,22 +1699,35 @@ function Student({ token }: { token: string }) {
                 const filled = answerFilled(e, a);
                 return (
                   <button
-                    aria-label={`Упражнение ${i + 1}${filled ? ", ответ заполнен" : ""}`}
+                    aria-label={`Упражнение ${i + 1}${filled ? ", ответ заполнен" : validationAttempted ? ", нет ответа" : ""}`}
                     aria-current={draft.position === i ? "step" : undefined}
-                    className={`${draft.position === i ? "current" : ""} ${filled ? "filled" : ""}`}
+                    className={`${draft.position === i ? "current" : ""} ${filled ? "filled" : validationAttempted ? "missing" : ""}`}
                     key={e.id}
                     onClick={() => setDraft({ ...draft, position: i })}
                   >
                     {filled && draft.position !== i ? (
                       <Check size={17} />
                     ) : (
-                      i + 1
+                      <>
+                        {i + 1}
+                        {validationAttempted && !filled && (
+                          <span className="missing-marker" aria-hidden="true">
+                            !
+                          </span>
+                        )}
+                      </>
                     )}
                   </button>
                 );
               })}
             </div>
-            <section className="question-card" key={exercise?.id}>
+            <section
+              className="question-card"
+              key={exercise?.id}
+              ref={questionRef}
+              tabIndex={-1}
+              aria-label={`Упражнение ${draft.position + 1}`}
+            >
               <div className="eyebrow">
                 УПРАЖНЕНИЕ {draft.position + 1} ИЗ {test?.exerciseCount}
               </div>
@@ -1714,11 +1755,23 @@ function Student({ token }: { token: string }) {
                         </h1>
                         <AnswerInput
                           exercise={item}
+                          missing={
+                            validationAttempted &&
+                            !answerFilled(item, answers[item.id])
+                          }
                           answer={answers[item.id]}
                           onChange={(value) =>
                             choose({ ...answers, [item.id]: value })
                           }
                         />
+                        {validationAttempted &&
+                          !answerFilled(item, answers[item.id]) && (
+                            <div id={`missing-${item.id}`}>
+                              <ErrorBox
+                                message={`Ответьте на задание № ${item.taskNumber}.`}
+                              />
+                            </div>
+                          )}
                       </section>
                     );
                   })}
@@ -1727,11 +1780,23 @@ function Student({ token }: { token: string }) {
                 exercise && (
                   <AnswerInput
                     exercise={exercise}
+                    missing={
+                      validationAttempted &&
+                      !answerFilled(exercise, draft.answers[exercise.id])
+                    }
                     answer={draft.answers[exercise.id]}
                     onChange={choose}
                   />
                 )
               )}
+              {validationAttempted &&
+                exercise &&
+                exercise.type !== "group" &&
+                !answerFilled(exercise, draft.answers[exercise.id]) && (
+                  <div id={`missing-${exercise.id}`}>
+                    <ErrorBox message="Ответьте на это упражнение перед сдачей работы." />
+                  </div>
+                )}
               <ErrorBox message={error} />
               <div className="quiz-controls">
                 <Button
@@ -1753,7 +1818,12 @@ function Student({ token }: { token: string }) {
                     Дальше <ArrowRight size={17} />
                   </Button>
                 ) : (
-                  <Button disabled={busy} onClick={() => setConfirm(true)}>
+                  <Button
+                    disabled={busy}
+                    onClick={() => {
+                      if (checkComplete()) setConfirm(true);
+                    }}
+                  >
                     {busy ? (
                       <Loader2 size={17} className="spin" />
                     ) : (
@@ -1777,12 +1847,31 @@ function Student({ token }: { token: string }) {
         Русский без страданий <span>·</span> маленькая практика, большой
         прогресс
       </footer>
+      {showMissing && (
+        <Modal title="Нельзя сдать работу" onClose={() => returnToMissing()}>
+          <ErrorBox message="Ответьте на все задания. Остались задания без ответа:" />
+          <ul className="missing-list">
+            {missing.map((item) => (
+              <li key={`${item.exerciseId}:${item.itemId || ""}`}>
+                <button
+                  className="text-button"
+                  onClick={() => returnToMissing(item.position)}
+                >
+                  {item.label}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <Button onClick={() => returnToMissing()}>
+            Перейти к первому пропуску <ArrowRight size={17} />
+          </Button>
+        </Modal>
+      )}
       {confirm && (
         <Modal title="Завершить работу?" onClose={() => setConfirm(false)}>
           <p>
-            {answered === (test?.exerciseCount || 0)
-              ? "Все упражнения заполнены. После отправки вы увидите результат и правильные ответы."
-              : `Осталось без ответа: ${(test?.exerciseCount || 0) - answered}. Пропуски будут засчитаны как ошибки.`}
+            Все упражнения заполнены. После отправки вы увидите результат и
+            правильные ответы.
           </p>
           <p className="helper">
             Отправленные ответы изменить нельзя. Можно будет пройти тест заново.

@@ -1,3 +1,4 @@
+import { filledAnswers } from "./fixtures/filled-answers.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { initialState } from "../server/demo-content.mjs";
@@ -36,7 +37,7 @@ test("every allowed group persists in drafts, student results and teacher result
           "submit_attempt",
           {
             attemptId: work.id,
-            answers: {},
+            answers: filledAnswers(state.tests[0]),
             group: "ВС 11:30",
             groupDay: "sunday",
             groupTime: "11:30",
@@ -59,7 +60,11 @@ test("every allowed group persists in drafts, student results and teacher result
           execute(
             state,
             "submit_attempt",
-            { attemptId: work.id, answers: {}, group: "ПТ 18:30" },
+            {
+              attemptId: work.id,
+              answers: filledAnswers(state.tests[0]),
+              group: "ПТ 18:30",
+            },
             student,
           ),
           result,
@@ -119,7 +124,7 @@ test("previously saved groups survive and an old draft can finish with its origi
   const saved = execute(
     state,
     "submit_attempt",
-    { attemptId: submitted.id, answers: {} },
+    { attemptId: submitted.id, answers: filledAnswers(state.tests[0]) },
     student,
   );
   const draft = start();
@@ -141,7 +146,7 @@ test("previously saved groups survive and an old draft can finish with its origi
     "submit_attempt",
     {
       attemptId: draft.id,
-      answers: {},
+      answers: filledAnswers(state.tests[0]),
       groupDay: "monday",
       groupTime: "17:30",
     },
@@ -152,7 +157,7 @@ test("previously saved groups survive and an old draft can finish with its origi
     execute(
       state,
       "submit_attempt",
-      { attemptId: draft.id, answers: {} },
+      { attemptId: draft.id, answers: filledAnswers(state.tests[0]) },
       student,
     ),
     result,
@@ -208,7 +213,7 @@ test("migration preserves old submitted work and lets an old draft finish withou
   execute(
     state,
     "submit_attempt",
-    { attemptId: first.id, answers: {} },
+    { attemptId: first.id, answers: filledAnswers(state.tests[0]) },
     student,
   );
   const draft = start();
@@ -231,7 +236,7 @@ test("migration preserves old submitted work and lets an old draft finish withou
     execute(
       state,
       "submit_attempt",
-      { attemptId: draft.id, answers: {} },
+      { attemptId: draft.id, answers: filledAnswers(state.tests[0]) },
       student,
     ).group,
     null,

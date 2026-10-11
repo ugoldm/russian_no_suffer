@@ -2,6 +2,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import studentGroups from "../shared/student-groups.json" with { type: "json" };
+import { filledAnswers } from "../tests/fixtures/filled-answers.mjs";
 import { groupedFixture } from "../tests/fixtures/grouped-test.mjs";
 const db = new PGlite();
 try {
@@ -824,6 +825,93 @@ try {
   });
   assert.equal(partial.correct, 1);
   assert.equal(partial.total, 15);
+  await db.exec("reset role");
+  await db.exec(
+    readFileSync("supabase/migrations/012_required_answers.sql", "utf8"),
+  );
+  await as(student);
+  // Replays and previously saved incomplete work keep their original result.
+  assert.deepEqual(
+    await call("submit_attempt", { attemptId: invalidGroup.id, answers: {} }),
+    partial,
+  );
+  const ordinary = structuredClone(grouped);
+  ordinary.versionId = "required-ordinary-v1";
+  ordinary.id = "required-ordinary";
+  ordinary.shareToken = "required-ordinary-token";
+  ordinary.exercises = [
+    { id: "word", type: "text", prompt: "Слово", key: ["да"] },
+    {
+      id: "single",
+      type: "single",
+      prompt: "Выбор",
+      key: ["b"],
+      options: [
+        { id: "a", text: "Первый" },
+        { id: "b", text: "Второй" },
+      ],
+    },
+    structuredClone(grouped.exercises[0].items[1]),
+  ];
+  await db.exec("reset role");
+  await db.query(
+    "insert into private.tests(version_id,owner_id,data,share_token) values($1,$2,$3::jsonb,$4)",
+    [
+      ordinary.versionId,
+      teacher,
+      JSON.stringify(ordinary),
+      ordinary.shareToken,
+    ],
+  );
+  await as(student);
+  for (const fixture of [ordinary, grouped]) {
+    const work = await call("start_attempt", {
+      token: fixture.shareToken,
+      name: "Обязательные ответы",
+      groupDay: "monday",
+      groupTime: "18:30",
+    });
+    const complete = filledAnswers(fixture);
+    const slots = fixture.exercises.flatMap((e, position) =>
+      e.type === "group"
+        ? e.items.map((item) => ({ e, item, position }))
+        : [{ e, item: e, position }],
+    );
+    for (const { e, item, position } of slots) {
+      for (const raw of item.type === "multiple"
+        ? [null, []]
+        : [null, "", " \n\t\u00a0\u2003\ufeff"]) {
+        const answers = structuredClone(complete);
+        if (e.type === "group") answers[e.id][item.id] = raw;
+        else answers[e.id] = raw;
+        await assert.rejects(
+          () => call("submit_attempt", { attemptId: work.id, answers }),
+          new RegExp("Нельзя сдать работу.*Упражнение " + (position + 1)),
+        );
+        const draft = await call("get_attempt", { attemptId: work.id });
+        assert.equal(draft.status, "started");
+        assert.equal(draft.answers, undefined);
+        assert.ok(!JSON.stringify(draft).includes('"key"'));
+      }
+      const answers = structuredClone(complete);
+      if (e.type === "group") delete answers[e.id][item.id];
+      else delete answers[e.id];
+      await assert.rejects(
+        () => call("submit_attempt", { attemptId: work.id, answers }),
+        /Нельзя сдать работу/,
+      );
+    }
+    const r = await call("submit_attempt", {
+      attemptId: work.id,
+      answers: complete,
+    });
+    assert.equal(r.status, "submitted");
+    assert.equal(r.correct, 0);
+    assert.deepEqual(
+      await call("submit_attempt", { attemptId: work.id, answers: {} }),
+      r,
+    );
+  }
   // The migration retains completed legacy results and their stored scores.
   await db.exec("reset role");
   await as(teacher, false);

@@ -1,3 +1,5 @@
+import { filledAnswers } from "./fixtures/filled-answers.mjs";
+import { demoTest } from "../server/demo-content.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createApp } from "../server/index.mjs";
@@ -39,10 +41,24 @@ test("HTTP API persists records across restart and isolates student sessions", a
       (await call("other", "get_attempt", { attemptId: p.id })).status,
       404,
     );
+    const rejected = await call("student", "submit_attempt", {
+      attemptId: p.id,
+      answers: {},
+    });
+    assert.equal(rejected.status, 400);
+    assert.match(rejected.error, /Нельзя сдать работу.*Упражнение 1/);
+    assert.equal(
+      (await call("student", "get_attempt", { attemptId: p.id })).data.status,
+      "started",
+    );
+    assert.equal(
+      (await call("teacher", "teacher_overview")).data.results.length,
+      0,
+    );
     const result = (
       await call("student", "submit_attempt", {
         attemptId: p.id,
-        answers: {},
+        answers: filledAnswers(demoTest),
         durationSeconds: 999,
       })
     ).data;

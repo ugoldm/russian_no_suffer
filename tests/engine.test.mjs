@@ -1,3 +1,4 @@
+import { filledAnswers } from "./fixtures/filled-answers.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { initialState } from "../server/demo-content.mjs";
@@ -37,7 +38,7 @@ test("duration excludes name entry, survives recovery and is frozen on retry", (
     "submit_attempt",
     {
       attemptId: p.id,
-      answers: {},
+      answers: filledAnswers(s.tests[0]),
       durationSeconds: 1,
       submittedAt: "2000-01-01",
     },
@@ -46,7 +47,12 @@ test("duration excludes name entry, survives recovery and is frozen on retry", (
   assert.equal(result.durationSeconds, 125);
   ctx.mock.timers.tick(50000);
   assert.deepEqual(
-    execute(s, "submit_attempt", { attemptId: p.id, answers: {} }, student),
+    execute(
+      s,
+      "submit_attempt",
+      { attemptId: p.id, answers: filledAnswers(s.tests[0]) },
+      student,
+    ),
     result,
   );
   assert.equal(
@@ -65,8 +71,12 @@ test("duration excludes name entry, survives recovery and is frozen on retry", (
   );
   ctx.mock.timers.tick(2000);
   assert.equal(
-    execute(s, "submit_attempt", { attemptId: p2.id, answers: {} }, student)
-      .durationSeconds,
+    execute(
+      s,
+      "submit_attempt",
+      { attemptId: p2.id, answers: filledAnswers(s.tests[0]) },
+      student,
+    ).durationSeconds,
     2,
   );
   delete s.attempts[0].startedAt;
@@ -115,10 +125,13 @@ test("grading treats choices as a set, rejects duplicates and invalid choices", 
   };
   assert.equal(grade(separatedIds, ["a", "b"]), false);
 });
-test("server computes score, skips count as wrong, retry does not overwrite", () => {
+test("server computes score from filled answers, retry does not overwrite", () => {
   const { s, p } = setup();
   const answers = Object.fromEntries(
-    s.tests[0].exercises.slice(0, 4).map((e) => [e.id, e.key]),
+    s.tests[0].exercises.map((e, i) => [
+      e.id,
+      i < 4 ? e.key : [e.options.find((o) => !e.key.includes(o.id)).id],
+    ]),
   );
   const result = execute(
     s,
@@ -132,7 +145,7 @@ test("server computes score, skips count as wrong, retry does not overwrite", ()
   const retry = execute(
     s,
     "submit_attempt",
-    { attemptId: p.id, answers: {} },
+    { attemptId: p.id, answers: filledAnswers(s.tests[0]) },
     student,
   );
   assert.deepEqual(retry, result);
@@ -175,14 +188,23 @@ test("archived tests prevent starting but allow submitting an existing attempt",
     /новых попыток/,
   );
   assert.equal(
-    execute(s, "submit_attempt", { attemptId: p.id, answers: {} }, student)
-      .percentage,
-    0,
+    execute(
+      s,
+      "submit_attempt",
+      { attemptId: p.id, answers: filledAnswers(s.tests[0]) },
+      student,
+    ).status,
+    "submitted",
   );
 });
 test("repeats are separate and matching names do not identify owners", () => {
   const { s, p, test } = setup();
-  execute(s, "submit_attempt", { attemptId: p.id, answers: {} }, student);
+  execute(
+    s,
+    "submit_attempt",
+    { attemptId: p.id, answers: filledAnswers(s.tests[0]) },
+    student,
+  );
   const p2 = execute(
     s,
     "start_attempt",
@@ -246,7 +268,13 @@ test("test links are stable, version-specific, and sharing creates no records", 
   const r = execute(
     s,
     "submit_attempt",
-    { attemptId: p.id, answers: { "stress-1": first.exercises[0].key } },
+    {
+      attemptId: p.id,
+      answers: {
+        ...filledAnswers(s.tests[0]),
+        "stress-1": first.exercises[0].key,
+      },
+    },
     student,
   );
   assert.equal(r.correct, 1);

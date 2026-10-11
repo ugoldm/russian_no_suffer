@@ -1,3 +1,4 @@
+import { filledAnswers } from "./fixtures/filled-answers.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { initialState } from "../server/demo-content.mjs";
@@ -26,7 +27,7 @@ test("only teachers can hide saved work; hiding and restoring preserve student r
     "submit_attempt",
     {
       attemptId: work.id,
-      answers: {},
+      answers: filledAnswers(state.tests[0]),
     },
     student,
   );
@@ -70,7 +71,7 @@ test("only teachers can hide saved work; hiding and restoring preserve student r
         "submit_attempt",
         {
           attemptId: work.id,
-          answers: {},
+          answers: filledAnswers(state.tests[0]),
           teacherHidden: !hidden,
         },
         student,
