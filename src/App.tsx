@@ -58,8 +58,16 @@ function PromptText({ text }: { text: string | undefined }) {
     </>
   );
 }
-const testTitle = (test: Pick<Test, "exam" | "taskNumber">) =>
-  `${test.exam}. Задание № ${test.taskNumber}`;
+const testTitle = (
+  test: Pick<Test, "exam" | "taskNumber"> & {
+    title?: string;
+    testTitle?: string;
+  },
+) => {
+  const base = `${test.exam}. Задание № ${test.taskNumber}`;
+  const savedTitle = test.title ?? test.testTitle;
+  return savedTitle?.startsWith(`${base}. `) ? savedTitle : base;
+};
 const estimatedDuration = (
   test: Pick<Test, "exam" | "taskNumber" | "estimatedDuration">,
 ) =>
@@ -383,6 +391,7 @@ function Teacher() {
               id: r.testId,
               exam: r.exam,
               taskNumber: r.taskNumber,
+              title: r.testTitle,
             },
           ] as const,
       ),

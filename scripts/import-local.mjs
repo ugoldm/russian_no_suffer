@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath } from "node:url";
-import { validateTest } from "./import-sql.mjs";
+import { validateTest, testTopic } from "./import-sql.mjs";
 
 function content(test) {
   const { shareToken, legacyTokens, status, ...data } = test;
@@ -46,6 +46,7 @@ export function importLocal(input, databasePath = ".local/demo.sqlite") {
             (t.exam === incoming.exam &&
               t.year === incoming.year &&
               t.taskNumber === incoming.taskNumber &&
+              testTopic(t) === testTopic(incoming) &&
               t.id !== incoming.id),
         )
       )

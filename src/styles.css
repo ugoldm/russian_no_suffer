@@ -1422,6 +1422,7 @@ td small {
   outline-offset: 3px;
 }
 .option-number {
+  flex-shrink: 0;
   font-size: 11px;
   color: #a4ae98;
   background: #f4f6ee;
@@ -1436,7 +1437,12 @@ td small {
   font-size: 19px;
   letter-spacing: 0.2px;
 }
+.option-word {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .option-check {
+  flex-shrink: 0;
   height: 21px;
   width: 21px;
   border: 1px solid #dbe3d0;

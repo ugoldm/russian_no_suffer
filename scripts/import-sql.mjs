@@ -3,6 +3,13 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { randomUUID, createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
+export function testTopic(test) {
+  const prefix = `${test.exam}. Задание № ${test.taskNumber}. `;
+  return test.title?.startsWith(prefix)
+    ? test.title.slice(prefix.length).trim()
+    : "";
+}
+
 export function validateTest(t) {
   const fail = (msg) => {
     throw new Error(msg);
@@ -124,7 +131,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const quote = (v) => "'" + v.replaceAll("'", "''") + "'";
     const delimiter = "$content_" + randomUUID().replaceAll("-", "") + "$";
     const literal = delimiter + JSON.stringify(t) + delimiter;
-    const sql = `-- Import SHA256: ${createHash("sha256").update(raw).digest("hex")}\n-- Generated content. Review as teacher before publishing.\ndo $import$\ndeclare new_data jsonb := ${literal}::jsonb; existing jsonb;\nbegin\n  if not exists(select 1 from private.teachers where user_id=${quote(owner)}::uuid) then raise exception 'Teacher is not allowlisted'; end if;\n  select data into existing from private.tests where version_id=${quote(t.versionId)};\n  if existing is not null then\n    if existing is distinct from new_data or not exists(select 1 from private.tests where version_id=${quote(t.versionId)} and owner_id=${quote(owner)}::uuid) then raise exception 'Version already exists with different content or owner'; end if;\n  else\n    if exists(select 1 from private.tests where owner_id=${quote(owner)}::uuid and data->>'exam'=new_data->>'exam' and data->>'year'=new_data->>'year' and data->'taskNumber'=new_data->'taskNumber' and data->>'id'<>new_data->>'id') then raise exception 'This exam number already has another test ID'; end if;\n    insert into private.tests(version_id,owner_id,data) values(${quote(t.versionId)},${quote(owner)}::uuid,new_data);\n  end if;\nend $import$;\n`;
+    const prefixSql =
+      "(data->>'exam')||'. Задание № '||(data->>'taskNumber')||'. '";
+    const topicSql = `case when position((${prefixSql}) in (data->>'title'))=1 then btrim(substr(data->>'title',length(${prefixSql})+1)) else '' end`;
+    const sql = `-- Import SHA256: ${createHash("sha256").update(raw).digest("hex")}\n-- Generated content. Review as teacher before publishing.\ndo $import$\ndeclare new_data jsonb := ${literal}::jsonb; existing jsonb;\nbegin\n  if not exists(select 1 from private.teachers where user_id=${quote(owner)}::uuid) then raise exception 'Teacher is not allowlisted'; end if;\n  select data into existing from private.tests where version_id=${quote(t.versionId)};\n  if existing is not null then\n    if existing is distinct from new_data or not exists(select 1 from private.tests where version_id=${quote(t.versionId)} and owner_id=${quote(owner)}::uuid) then raise exception 'Version already exists with different content or owner'; end if;\n  else\n    if exists(select 1 from private.tests where owner_id=${quote(owner)}::uuid and data->>'exam'=new_data->>'exam' and data->>'year'=new_data->>'year' and data->'taskNumber'=new_data->'taskNumber' and (${topicSql})=${quote(testTopic(t))} and data->>'id'<>new_data->>'id') then raise exception 'This exam number already has another test ID'; end if;\n    insert into private.tests(version_id,owner_id,data) values(${quote(t.versionId)},${quote(owner)}::uuid,new_data);\n  end if;\nend $import$;\n`;
     mkdirSync(dirname(dest), { recursive: true });
     writeFileSync(dest, sql);
     console.log(
