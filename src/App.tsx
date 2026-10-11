@@ -1366,6 +1366,9 @@ function Student({ token }: { token: string }) {
       setStorageWarning(true);
     }
   }, [draft]);
+  useEffect(() => {
+    if (result) window.scrollTo(0, 0);
+  }, [result?.id]);
   async function start() {
     setBusy(true);
     setError("");
@@ -1436,7 +1439,12 @@ function Student({ token }: { token: string }) {
           <Leaf size={16} /> Практика без спешки
         </span>
       </header>
-      <main className={`student-main ${result ? "wide" : ""}`}>
+      <main
+        // Replace the screen as a whole: browser translators can replace text
+        // nodes, making React's quiz-to-result reconciliation fail.
+        key={result ? "result" : draft ? "quiz" : "intro"}
+        className={`student-main ${result ? "wide" : ""}`}
+      >
         {!ready ? (
           <div className="student-intro">
             <div className="eyebrow">ТЕСТ</div>
@@ -1815,7 +1823,7 @@ function Student({ token }: { token: string }) {
                     ) : (
                       <CheckCircle2 size={17} />
                     )}
-                    Завершить и проверить
+                    <span>Завершить и проверить</span>
                   </Button>
                 )}
               </div>
