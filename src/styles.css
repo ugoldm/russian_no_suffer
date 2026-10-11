@@ -1048,10 +1048,15 @@ td small {
   border-radius: 19px;
   padding: 38px;
 }
-.student-intro > h1 {
+.student-intro > h1,
+.student-intro-heading h1 {
   font-size: 33px;
   letter-spacing: -1px;
   margin-top: 17px;
+}
+.student-intro-heading > .exam-tag {
+  display: inline-flex;
+  margin-top: 12px;
 }
 .student-illustration {
   width: 100px;
@@ -1177,6 +1182,127 @@ td small {
   margin: 19px auto;
   font-size: 11px;
   color: #94a085;
+}
+@media (min-width: 960px) {
+  .student-page-intro .student-header {
+    height: 64px;
+    padding: 10px 45px;
+    flex-shrink: 0;
+  }
+  .student-page-intro .student-main {
+    width: min(760px, calc(100% - 40px));
+    margin: 16px auto 12px;
+  }
+  .student-page-intro .student-intro {
+    padding: 24px;
+  }
+  .student-page-intro .student-intro-heading {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .student-page-intro .student-illustration {
+    width: 48px;
+    height: 48px;
+    margin: 0;
+    border-radius: 14px;
+    flex-shrink: 0;
+  }
+  .student-page-intro .student-illustration svg {
+    width: 30px;
+    height: 30px;
+  }
+  .student-page-intro .student-intro-heading h1 {
+    margin: 0;
+    font-size: 28px;
+  }
+  .student-page-intro .student-intro-heading > .exam-tag {
+    margin: 0 0 0 auto;
+    flex-shrink: 0;
+  }
+  .student-page-intro .intro-description {
+    margin: 12px 0;
+  }
+  .student-page-intro .student-test-facts {
+    padding: 10px 0;
+  }
+  .student-page-intro .student-start-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 24px;
+    margin-top: 20px;
+  }
+  .student-page-intro .student-name-field {
+    margin: 0;
+    gap: 12px;
+  }
+  .student-page-intro .student-group-picker {
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .student-page-intro .student-group-label {
+    margin: 16px 0 6px;
+  }
+  .student-page-intro .student-group-picker legend {
+    margin-bottom: 10px;
+  }
+  .student-page-intro .student-start-form > .button {
+    margin-top: 0;
+  }
+  .student-page-intro .another-student {
+    margin: 4px auto;
+  }
+  .student-page-intro .student-footer {
+    padding: 5px 12px;
+  }
+}
+@media (min-width: 960px) and (max-height: 700px) {
+  .student-page-intro .student-header {
+    height: 52px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+  .student-page-intro .student-header .brand-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+  }
+  .student-page-intro .student-main {
+    margin-top: 8px;
+    margin-bottom: 6px;
+  }
+  .student-page-intro .student-intro {
+    padding: 18px;
+  }
+  .student-page-intro .student-illustration {
+    width: 38px;
+    height: 38px;
+  }
+  .student-page-intro .intro-description {
+    margin: 8px 0;
+    font-size: 12px;
+  }
+  .student-page-intro .student-test-facts {
+    padding: 6px 0;
+  }
+  .student-page-intro .student-start-form {
+    gap: 16px;
+    margin-top: 14px;
+  }
+  .student-page-intro .student-name-field {
+    gap: 10px;
+  }
+  .student-page-intro .student-group-label {
+    margin-top: 12px;
+  }
+  .student-page-intro .another-student {
+    margin: 0 auto;
+  }
+  .student-page-intro .student-footer {
+    padding: 0 8px;
+  }
 }
 .quiz-heading {
   display: flex;
@@ -1635,7 +1761,8 @@ td small {
   .student-intro {
     padding: 27px 22px;
   }
-  .student-intro > h1 {
+  .student-intro > h1,
+  .student-intro-heading h1 {
     font-size: 28px;
   }
   .student-illustration {

@@ -1280,7 +1280,9 @@ function Student({ token }: { token: string }) {
     });
   }
   return (
-    <div className="student-page">
+    <div
+      className={`student-page ${ready && !loading && test && !draft && !result ? "student-page-intro" : ""}`}
+    >
       <header className="student-header">
         <Brand />
         <span className="light-label">
@@ -1358,13 +1360,15 @@ function Student({ token }: { token: string }) {
           </>
         ) : !draft ? (
           <div className="student-intro">
-            {test.demo && (
-              <span className="exam-tag">Демонстрационный тест</span>
-            )}
-            <div className="student-illustration" aria-hidden="true">
-              <GraduationCap size={52} />
+            <div className="student-intro-heading">
+              <div className="student-illustration" aria-hidden="true">
+                <GraduationCap size={52} />
+              </div>
+              <h1>{testTitle(test)}</h1>
+              {test.demo && (
+                <span className="exam-tag">Демонстрационный тест</span>
+              )}
             </div>
-            <h1>{testTitle(test)}</h1>
             <p className="intro-description">{webPrompt(test?.description)}</p>
             <div className="student-test-facts">
               <span>
@@ -1382,6 +1386,7 @@ function Student({ token }: { token: string }) {
               </div>
             ) : (
               <form
+                className="student-start-form"
                 onSubmit={(e) => {
                   e.preventDefault();
                   void start();
@@ -1407,7 +1412,8 @@ function Student({ token }: { token: string }) {
                     className="student-group-description"
                     id="student-group-description"
                   >
-                    Выбери день и время, когда у тебя обычно проходят занятия
+                    Укажи, когда у тебя обычно проходят занятия. Если занимаешься
+                    в разные дни недели, выбери тот, который идёт раньше.
                   </p>
                   <p
                     className="student-group-label"
