@@ -42,7 +42,7 @@ export function missingAnswers(exercises, answers) {
               position,
               exerciseId: exercise.id,
               itemId: item.id,
-              label: `Упражнение ${position + 1}, задание № ${item.taskNumber ?? index + 1}`,
+              label: `Упражнение ${position + 1}, ${item.label?.toLocaleLowerCase("ru") || `задание № ${item.taskNumber ?? index + 1}`}`,
             },
           ],
     );

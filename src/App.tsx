@@ -80,6 +80,17 @@ const estimatedDuration = (
 ) =>
   test.estimatedDuration ||
   (test.exam === "ЕГЭ" && test.taskNumber === 9 ? "20–30 минут" : "5–10 минут");
+const exerciseCountText = (count: number) => {
+  const ending =
+    count % 100 >= 11 && count % 100 <= 14
+      ? "упражнений"
+      : count % 10 === 1
+        ? "упражнение"
+        : count % 10 >= 2 && count % 10 <= 4
+          ? "упражнения"
+          : "упражнений";
+  return `${count} ${ending}`;
+};
 const formatDate = (date: string) =>
   new Intl.DateTimeFormat("ru-RU", {
     day: "numeric",
@@ -546,7 +557,7 @@ function Teacher() {
                     <div className="test-facts">
                       <span>
                         <FileCheck2 size={15} />
-                        {t.exerciseCount} упражнений
+                        {exerciseCountText(t.exerciseCount)}
                         {t.maximumScore ? ` · ${t.maximumScore} баллов` : ""}
                       </span>
                       <span>
@@ -1084,7 +1095,9 @@ function Review({
         >
           <div className="review-top">
             <span>
-              {nested ? `Задание № ${e.taskNumber}` : `Упражнение ${i + 1}`}
+              {nested
+                ? e.label || `Задание № ${e.taskNumber}`
+                : `Упражнение ${i + 1}`}
             </span>
             {!preview && (
               <strong>
@@ -1539,7 +1552,7 @@ function Student({ token }: { token: string }) {
             <div className="student-test-facts">
               <span>
                 <FileCheck2 size={17} />
-                {test?.exerciseCount} упражнений
+                {exerciseCountText(test?.exerciseCount || 0)}
                 {test.maximumScore ? ` · ${test.maximumScore} баллов` : ""}
               </span>
               <span>
@@ -1753,7 +1766,7 @@ function Student({ token }: { token: string }) {
                     return (
                       <section className="reading-task" key={item.id}>
                         <div className="eyebrow">
-                          ЗАДАНИЕ № {item.taskNumber}
+                          {item.label || `ЗАДАНИЕ № ${item.taskNumber}`}
                         </div>
                         <h1>
                           <PromptText text={item.prompt} />
@@ -1773,7 +1786,7 @@ function Student({ token }: { token: string }) {
                           !answerFilled(item, answers[item.id]) && (
                             <div id={`missing-${item.id}`}>
                               <ErrorBox
-                                message={`Ответьте на задание № ${item.taskNumber}.`}
+                                message={`Ответьте на ${item.label?.toLocaleLowerCase("ru") || `задание № ${item.taskNumber}`}.`}
                               />
                             </div>
                           )}

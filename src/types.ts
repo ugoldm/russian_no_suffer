@@ -11,6 +11,7 @@ export interface Exercise {
   passage?: string;
   items?: Exercise[];
   taskNumber?: number;
+  label?: string;
   answerPlaceholder?: string;
   score?: number;
   total?: number;

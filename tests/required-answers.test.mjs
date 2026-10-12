@@ -32,6 +32,22 @@ test("presence uses the same rule for all answer formats, including whitespace a
       },
     ],
   );
+  const numberedGroup = {
+    id: "numbered-group",
+    type: "group",
+    items: [1, 2].map((number) => ({
+      id: `task-${number}`,
+      type: "multiple",
+      taskNumber: 9,
+      label: `Задача ${number}`,
+    })),
+  };
+  assert.deepEqual(
+    missingAnswers([numberedGroup], {
+      [numberedGroup.id]: { "task-1": ["a"] },
+    }).map((missing) => missing.label),
+    ["Упражнение 1, задача 2"],
+  );
 });
 
 test("every missing ordinary answer rejects submission without changing the draft or exposing keys", () => {

@@ -82,19 +82,26 @@ teacher_uuid='UUID_ПРЕПОДАВАТЕЛЯ'
 
 ```sh
 npm run import:sql -- imports/ege-9/test.json "$teacher_uuid" imports/setup/ege-9.sql
+npm run import:sql -- imports/ege-10/test.json "$teacher_uuid" imports/setup/ege-10.sql
+npm run import:sql -- imports/ege-11/test.json "$teacher_uuid" imports/setup/ege-11.sql
+npm run import:sql -- imports/ege-12/test.json "$teacher_uuid" imports/setup/ege-12.sql
 npm run import:sql -- imports/ege-16/test.json "$teacher_uuid" imports/setup/ege-16.sql
 npm run import:sql -- imports/ege-17/test.json "$teacher_uuid" imports/setup/ege-17.sql
+npm run import:sql -- imports/ege-18/test.json "$teacher_uuid" imports/setup/ege-18.sql
 npm run import:sql -- imports/ege-19/test.json "$teacher_uuid" imports/setup/ege-19.sql
 npm run import:sql -- imports/ege-20/test.json "$teacher_uuid" imports/setup/ege-20.sql
 npm run import:sql -- imports/ege-21-commas/test.json "$teacher_uuid" imports/setup/ege-21-commas.sql
 npm run import:sql -- imports/ege-21-dash-colon/test.json "$teacher_uuid" imports/setup/ege-21-dash-colon.sql
+npm run import:sql -- imports/ege-23-26/test.json "$teacher_uuid" imports/setup/ege-23-26.sql
 npm run import:sql -- imports/oge-5/test-commas-quotes.json "$teacher_uuid" imports/setup/oge-5-commas-quotes.sql
 npm run import:sql -- imports/oge-5/test-dash-colon.json "$teacher_uuid" imports/setup/oge-5-dash-colon.sql
+npm run import:sql -- imports/oge-8/test.json "$teacher_uuid" imports/setup/oge-8.sql
+npm run import:sql -- imports/oge-9/test.json "$teacher_uuid" imports/setup/oge-9.sql
 npm run import:sql -- imports/oge-11/test.json "$teacher_uuid" imports/setup/oge-11.sql
 npm run import:sql -- imports/oge-10-12/test.json "$teacher_uuid" imports/setup/oge-10-12.sql
 ```
 
-Проверьте, что каждая команда завершилась успешно. Откройте каждый из 11 созданных файлов в `imports/setup/`, скопируйте целиком в SQL Editor и выполните. `supabase-init.sql` повторно не выполнять. При первом запуске можно выполнить один учебный импорт, проверить сервис, затем добавить остальные тем же способом.
+Проверьте, что каждая команда завершилась успешно. Откройте каждый из 18 созданных файлов в `imports/setup/`, скопируйте целиком в SQL Editor и выполните. `supabase-init.sql` повторно не выполнять. При первом запуске можно выполнить один учебный импорт, проверить сервис, затем добавить остальные тем же способом.
 
 Команды берут актуальные подготовленные версии, включая версию 4 ОГЭ № 10–12. Повторный импорт идентичной версии допустим; изменение содержания требует новой версии.
 
@@ -184,5 +191,7 @@ https://github.com/ugoldm/russian_no_suffer/actions
 | Ошибка отправки работы | Состояние Supabase, соединение, миграции; сохранить черновик и повторить отправку |
 
 ## Дальнейшие обновления
+
+Для «ЕГЭ. Задания № 9–12» (четыре упражнения, 20 задач с выбором вариантов) подготовлен `imports/setup/ege-9-12.sql`. Генерация для нужного преподавателя: `npm run import:sql -- imports/ege-9-12/test.json UUID_ПРЕПОДАВАТЕЛЯ imports/setup/ege-9-12.sql`. Используются существующие миграции групповых заданий. SQL дважды исполнен в изолированной PostgreSQL-базе; 640 случаев оценки совпали с локальным сервером. Версия 1 добавлена локально; выполнение SQL в Supabase и публикация изменений интерфейса не выполнялись.
 
 Изменения интерфейса публикуются после push в `main`. GitHub Actions не обновляет базу и не импортирует тесты. Для изменения структуры применять только новые SQL-миграции; для новых материалов генерировать и выполнять SQL-импорт. `supabase-init.sql` используется только при первом создании базы.

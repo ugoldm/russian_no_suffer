@@ -3,6 +3,7 @@ interface ExerciseLike {
   type: string;
   items?: ExerciseLike[];
   taskNumber?: number;
+  label?: string;
 }
 export interface MissingAnswer {
   position: number;
