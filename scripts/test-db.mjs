@@ -917,8 +917,99 @@ try {
   await as(teacher, false);
   assert.deepEqual(await call("teacher_result", { attemptId: next.id }), timed);
   await db.exec("reset role");
+
+  // Archive only the synthetic EGE 4 test, across all versions. Keep both
+  // historical results and a started draft usable after the catalog removal.
+  await db.exec(`
+    insert into private.tests(version_id,owner_id,data)
+    select 'ege-4-demo-v2',owner_id,
+      data || '{"versionId":"ege-4-demo-v2","version":2}'::jsonb
+    from private.tests where version_id='ege-4-demo-v1';
+  `);
+  await as(student);
+  const archiveDraft = await call("start_attempt", {
+    token: direct.shareToken,
+    name: "Архивный черновик",
+    groupDay: "monday",
+    groupTime: "17:30",
+  });
+  await db.exec("reset role");
+  const snapshot = async () => ({
+    tests: (await db.query("select * from private.tests order by version_id"))
+      .rows,
+    attempts: (await db.query("select * from private.attempts order by id"))
+      .rows,
+  });
+  const beforeArchive = await snapshot();
+  const archiveSql = readFileSync(
+    "supabase/migrations/013_archive_ege_4_demo.sql",
+    "utf8",
+  );
+  await db.exec(archiveSql);
+  const afterArchive = await snapshot();
+  assert.deepEqual(afterArchive.attempts, beforeArchive.attempts);
+  assert.deepEqual(
+    afterArchive.tests,
+    beforeArchive.tests.map((test) =>
+      test.data.id === "ege-4-demo"
+        ? { ...test, data: { ...test.data, status: "archived" } }
+        : test,
+    ),
+  );
+  await db.exec(archiveSql);
+  assert.deepEqual(await snapshot(), afterArchive);
+  await as(teacher, false);
+  const retiredOverview = await call("teacher_overview");
+  assert.ok(!retiredOverview.tests.some((test) => test.id === "ege-4-demo"));
+  assert.ok(retiredOverview.tests.some((test) => test.id === ordinary.id));
+  assert.ok(retiredOverview.results.some((work) => work.id === next.id));
+  assert.deepEqual(await call("teacher_result", { attemptId: next.id }), timed);
+  await db.exec("reset role");
+  const demoTokens = (
+    await db.query(
+      "select share_token from private.tests where data->>'id'='ege-4-demo'",
+    )
+  ).rows.map((test) => test.share_token);
+  const demoContent = (
+    await db.query(
+      "select data from private.tests where version_id='ege-4-demo-v1'",
+    )
+  ).rows[0].data;
+  await as(student);
+  for (const token of [...demoTokens, a.token]) {
+    assert.equal((await call("get_test", { token })).status, "archived");
+    await assert.rejects(
+      () =>
+        call("start_attempt", {
+          token,
+          name: "Новая работа",
+          groupDay: "monday",
+          groupTime: "17:30",
+        }),
+      /новых попыток/,
+    );
+  }
+  assert.deepEqual(await call("get_attempt", { attemptId: next.id }), timed);
+  assert.equal(
+    (await call("get_attempt", { attemptId: archiveDraft.id })).status,
+    "started",
+  );
+  const completedArchive = await call("submit_attempt", {
+    attemptId: archiveDraft.id,
+    answers: Object.fromEntries(
+      demoContent.exercises.map((e) => [e.id, e.key]),
+    ),
+  });
+  assert.equal(completedArchive.percentage, 100);
+  await db.exec("reset role");
+  await as(teacher, false);
+  assert.deepEqual(
+    await call("teacher_result", { attemptId: archiveDraft.id }),
+    completedArchive,
+  );
+  await db.exec("reset role");
   console.log(
-    "Supabase migration verified: grading, RLS boundary, roles, idempotency, direct links, legacy upgrade, immutable versions, reversible result hiding, unread acknowledgement.",
+    "Supabase migration verified: grading, RLS boundary, roles, idempotency, direct links, legacy upgrade, immutable versions, reversible result hiding, unread acknowledgement, demo archive with preserved work.",
   );
 } finally {
   await db.close();

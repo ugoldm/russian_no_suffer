@@ -65,6 +65,23 @@ export function validateTest(t) {
           e.items.length > 20
         )
           fail(`Неверная группа заданий ${e.id}`);
+        if (e.passageHighlights !== undefined) {
+          let end = 0;
+          if (!Array.isArray(e.passageHighlights))
+            fail(`Неверные выделения текста ${e.id}`);
+          for (const range of e.passageHighlights) {
+            if (
+              !range ||
+              !Number.isInteger(range.start) ||
+              !Number.isInteger(range.end) ||
+              range.start < end ||
+              range.end <= range.start ||
+              range.end > e.passage.length
+            )
+              fail(`Неверные выделения текста ${e.id}`);
+            end = range.end;
+          }
+        }
         const childIds = new Set(e.items.map((item) => item.id));
         if (childIds.size !== e.items.length)
           fail("Повторяющиеся ID заданий текста");

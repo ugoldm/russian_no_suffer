@@ -82,9 +82,12 @@ teacher_uuid='UUID_ПРЕПОДАВАТЕЛЯ'
 
 ```sh
 npm run import:sql -- imports/ege-9/test.json "$teacher_uuid" imports/setup/ege-9.sql
+npm run import:sql -- imports/ege-1-3/test.json "$teacher_uuid" imports/setup/ege-1-3.sql
 npm run import:sql -- imports/ege-10/test.json "$teacher_uuid" imports/setup/ege-10.sql
 npm run import:sql -- imports/ege-11/test.json "$teacher_uuid" imports/setup/ege-11.sql
 npm run import:sql -- imports/ege-12/test.json "$teacher_uuid" imports/setup/ege-12.sql
+npm run import:sql -- imports/ege-13/test.json "$teacher_uuid" imports/setup/ege-13.sql
+npm run import:sql -- imports/ege-15/test.json "$teacher_uuid" imports/setup/ege-15.sql
 npm run import:sql -- imports/ege-16/test.json "$teacher_uuid" imports/setup/ege-16.sql
 npm run import:sql -- imports/ege-17/test.json "$teacher_uuid" imports/setup/ege-17.sql
 npm run import:sql -- imports/ege-18/test.json "$teacher_uuid" imports/setup/ege-18.sql
@@ -101,9 +104,11 @@ npm run import:sql -- imports/oge-11/test.json "$teacher_uuid" imports/setup/oge
 npm run import:sql -- imports/oge-10-12/test.json "$teacher_uuid" imports/setup/oge-10-12.sql
 ```
 
-Проверьте, что каждая команда завершилась успешно. Откройте каждый из 18 созданных файлов в `imports/setup/`, скопируйте целиком в SQL Editor и выполните. `supabase-init.sql` повторно не выполнять. При первом запуске можно выполнить один учебный импорт, проверить сервис, затем добавить остальные тем же способом.
+Проверьте, что каждая команда завершилась успешно. Откройте каждый из созданных файлов в `imports/setup/`, скопируйте целиком в SQL Editor и выполните. `supabase-init.sql` повторно не выполнять. При первом запуске можно выполнить один учебный импорт, проверить сервис, затем добавить остальные тем же способом.
 
 Команды берут актуальные подготовленные версии, включая версию 4 ОГЭ № 10–12. Повторный импорт идентичной версии допустим; изменение содержания требует новой версии.
+
+ЕГЭ № 1–3 (15 октября 2026 года) подготовлен в `imports/setup/ege-1-3.sql`: все шесть текстов, 18 ответов, 30–40 минут. Для исходного жирного выделения слов требуется текущая версия frontend с общим `ReadingPassage` и поддержкой `passageHighlights`; SQL сохраняет выделения, а отображает их frontend. Новая миграция базы для этого поля JSON не требуется. Удалённый импорт и публикация интерфейса в рамках подготовки теста не выполнялись.
 
 SQL содержит ключи ответов и остаётся в закрытой папке `imports/`. Исходные PDF не нужны на сайте. Прежние работы из локальной SQLite-базы не переносятся этим импортом; для них нужен отдельный перенос. Ссылки ученикам копируйте уже на опубликованном сайте.
 
@@ -191,6 +196,8 @@ https://github.com/ugoldm/russian_no_suffer/actions
 | Ошибка отправки работы | Состояние Supabase, соединение, миграции; сохранить черновик и повторить отправку |
 
 ## Дальнейшие обновления
+
+Для ЕГЭ № 13 актуален `imports/setup/ege-13.sql` версии 2 с перемешанным порядком тех же 20 упражнений. Он добавляет новую версию, сохраняя версию 1 и её работы; `ege-13-v1.sql` оставлен для истории. В локальный каталог версия 2 добавлена, удалённый импорт не выполнялся.
 
 Для «ЕГЭ. Задания № 9–12» (четыре упражнения, 20 задач с выбором вариантов) подготовлен `imports/setup/ege-9-12.sql`. Генерация для нужного преподавателя: `npm run import:sql -- imports/ege-9-12/test.json UUID_ПРЕПОДАВАТЕЛЯ imports/setup/ege-9-12.sql`. Используются существующие миграции групповых заданий. SQL дважды исполнен в изолированной PostgreSQL-базе; 640 случаев оценки совпали с локальным сервером. Версия 1 добавлена локально; выполнение SQL в Supabase и публикация изменений интерфейса не выполнялись.
 

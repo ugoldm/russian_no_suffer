@@ -62,6 +62,19 @@ function PromptText({ text }: { text: string | undefined }) {
     </>
   );
 }
+function ReadingPassage({ exercise }: { exercise: Exercise }) {
+  const text = exercise.passage || "";
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+  for (const { start, end } of exercise.passageHighlights || []) {
+    if (start < cursor || end <= start || end > text.length) continue;
+    parts.push(text.slice(cursor, start));
+    parts.push(<strong key={start}>{text.slice(start, end)}</strong>);
+    cursor = end;
+  }
+  parts.push(text.slice(cursor));
+  return <div className="reading-passage">{parts}</div>;
+}
 const testTitle = (
   test: Pick<Test, "exam" | "taskNumber"> & {
     title?: string;
@@ -1006,14 +1019,11 @@ function TeacherLogin({
             <Button
               type="submit"
               disabled={
-                busy ||
-                (mode === "supabase" && !!captchaKey && !captcha)
+                busy || (mode === "supabase" && !!captchaKey && !captcha)
               }
             >
               {busy ? <Loader2 className="spin" size={18} /> : null}
-              {mode === "demo"
-                ? "Открыть демонстрационный кабинет"
-                : "Войти"}
+              {mode === "demo" ? "Открыть демонстрационный кабинет" : "Войти"}
               <ArrowRight size={18} />
             </Button>
           </form>
@@ -1120,7 +1130,7 @@ function Review({
           <h4>
             <PromptText text={e.prompt} />
           </h4>
-          {e.passage && <div className="reading-passage">{e.passage}</div>}
+          {e.passage && <ReadingPassage exercise={e} />}
           {e.type === "group" ? (
             <Review exercises={e.items || []} preview={preview} nested />
           ) : (
@@ -1754,7 +1764,7 @@ function Student({ token }: { token: string }) {
               </h1>
               {exercise?.type === "group" ? (
                 <>
-                  <div className="reading-passage">{exercise.passage}</div>
+                  <ReadingPassage exercise={exercise} />
                   {exercise.items?.map((item) => {
                     const saved = draft.answers[exercise.id];
                     const answers =

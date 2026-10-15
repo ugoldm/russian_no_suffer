@@ -9,6 +9,7 @@ export interface Exercise {
   type: "multiple" | "single" | "text" | "group";
   options?: Option[];
   passage?: string;
+  passageHighlights?: { start: number; end: number }[];
   items?: Exercise[];
   taskNumber?: number;
   label?: string;

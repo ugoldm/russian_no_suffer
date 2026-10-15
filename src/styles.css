@@ -2070,6 +2070,9 @@ td small {
   overflow-wrap: anywhere;
   margin: 24px 0;
 }
+.reading-passage strong {
+  font-weight: 700;
+}
 .question-card .reading-passage,
 .question-card .reading-options {
   font-size: 19px;
