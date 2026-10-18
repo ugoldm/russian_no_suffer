@@ -37,6 +37,8 @@ import { captchaKey, login, logout, mode, rpc, teacherOverview } from "./api";
 import type { Answer, Attempt, Draft, Exercise, Overview, Test } from "./types";
 import { summarizeResults } from "./results-summary";
 import { formatReviewAnswer } from "./review-answer";
+import { compareTests } from "./test-order";
+import { MatchingTable, MatchingAnswer } from "./MatchingExercise";
 import {
   answerFilled,
   missingAnswers,
@@ -406,12 +408,7 @@ function Teacher() {
     );
   const tests = overview.tests
     .filter((t) => exam === "Все" || t.exam === exam)
-    .sort((a, b) => {
-      const examOrder = (value: string) => (value === "ЕГЭ" ? 0 : 1);
-      return (
-        examOrder(a.exam) - examOrder(b.exam) || a.taskNumber - b.taskNumber
-      );
-    });
+    .sort(compareTests);
   const resultTests = Array.from(
     new Map([
       ...overview.results.map(
@@ -430,11 +427,7 @@ function Teacher() {
     ]).values(),
   )
     .filter((t) => resultsExam === "Все" || t.exam === resultsExam)
-    .sort(
-      (a, b) =>
-        (a.exam === "ЕГЭ" ? 0 : 1) - (b.exam === "ЕГЭ" ? 0 : 1) ||
-        a.taskNumber - b.taskNumber,
-    );
+    .sort(compareTests);
   const unreadCount = overview.results.filter(
     (r) => r.teacherUnread && !r.teacherHidden,
   ).length;
@@ -1128,13 +1121,17 @@ function Review({
             )}
           </div>
           <h4>
-            <PromptText text={e.prompt} />
+            <PromptText
+              text={e.matchingTable ? e.prompt.split(/\n\s*\n/)[0] : e.prompt}
+            />
           </h4>
+          <MatchingTable exercise={e} />
           {e.passage && <ReadingPassage exercise={e} />}
           {e.type === "group" ? (
             <Review exercises={e.items || []} preview={preview} nested />
           ) : (
             <>
+              {e.matchingTable && <MatchingAnswer exercise={e} />}
               {!!e.options?.length && (
                 <ol className="review-options" aria-label="Варианты ответов">
                   {e.options?.map((o) => (
@@ -1194,6 +1191,9 @@ function AnswerInput({
   return (
     <>
       {" "}
+      {exercise.type === "text" && exercise.matchingTable && (
+        <MatchingAnswer exercise={exercise} />
+      )}
       {exercise.type !== "text" && (
         <p className="question-hint">
           {exercise.type === "multiple"
@@ -1220,6 +1220,7 @@ function AnswerInput({
                   "Без пробелов и запятых, например, 12"
             }
             value={typeof answer === "string" ? (answer as string) : ""}
+            inputMode={exercise.matchingTable ? "numeric" : undefined}
             onChange={(e) => onChange(e.target.value)}
             maxLength={2000}
             aria-invalid={missing || undefined}
@@ -1760,8 +1761,15 @@ function Student({ token }: { token: string }) {
                 УПРАЖНЕНИЕ {draft.position + 1} ИЗ {test?.exerciseCount}
               </div>
               <h1>
-                <PromptText text={exercise?.prompt} />
+                <PromptText
+                  text={
+                    exercise?.matchingTable
+                      ? exercise.prompt.split(/\n\s*\n/)[0]
+                      : exercise?.prompt
+                  }
+                />
               </h1>
+              {exercise && <MatchingTable exercise={exercise} />}
               {exercise?.type === "group" ? (
                 <>
                   <ReadingPassage exercise={exercise} />
@@ -1779,8 +1787,15 @@ function Student({ token }: { token: string }) {
                           {item.label || `ЗАДАНИЕ № ${item.taskNumber}`}
                         </div>
                         <h1>
-                          <PromptText text={item.prompt} />
+                          <PromptText
+                            text={
+                              item.matchingTable
+                                ? item.prompt.split(/\n\s*\n/)[0]
+                                : item.prompt
+                            }
+                          />
                         </h1>
+                        <MatchingTable exercise={item} />
                         <AnswerInput
                           exercise={item}
                           missing={

@@ -146,6 +146,46 @@ export function validateTest(t) {
         )
           fail(`Ключ digitSet должен содержать цифры без повторов: ${e.id}`);
       }
+      if (e.matchingTable !== undefined) {
+        const table = e.matchingTable;
+        if (
+          e.type !== "text" ||
+          e.normalization?.digitSet ||
+          e.options !== undefined ||
+          !table ||
+          typeof table.leftTitle !== "string" ||
+          !table.leftTitle.trim() ||
+          typeof table.rightTitle !== "string" ||
+          !table.rightTitle.trim() ||
+          [table.left, table.right].some(
+            (column) =>
+              !Array.isArray(column) ||
+              column.length < 2 ||
+              column.length > 9 ||
+              column.some(
+                (item) =>
+                  !item ||
+                  typeof item.id !== "string" ||
+                  !item.id.trim() ||
+                  typeof item.text !== "string" ||
+                  !item.text.trim(),
+              ) ||
+              new Set(column.map((item) => item.id)).size !== column.length,
+          )
+        )
+          fail(`Неверная таблица соответствий ${e.id}`);
+        if (
+          table.right.some((item) => !/^[1-9]$/.test(item.id)) ||
+          e.key?.some(
+            (key) =>
+              key.length !== table.left.length ||
+              [...key].some(
+                (digit) => !table.right.some((item) => item.id === digit),
+              ),
+          )
+        )
+          fail(`Неверный ключ таблицы соответствий ${e.id}`);
+      }
     }
   };
   validateExercises(t.exercises);

@@ -2082,6 +2082,75 @@ td small {
   padding-top: 24px;
   border-top: 1px solid var(--border);
 }
+.matching-table-scroll {
+  margin-top: 22px;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.matching-table {
+  width: 100%;
+  min-width: 600px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-family: "Golos Text", sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+  color: #263b34;
+}
+.matching-left-column {
+  width: 42%;
+}
+.matching-table th,
+.matching-table td {
+  border: 1px solid #8c988d;
+  padding: 10px 12px;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.matching-table th {
+  text-align: center;
+  font-weight: 700;
+}
+.matching-table td {
+  font-size: inherit;
+}
+.matching-table th,
+.matching-answer th {
+  background: white;
+  color: #263b34;
+  font-size: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.matching-table td p {
+  margin: 0 0 8px;
+}
+.matching-table td p:last-child {
+  margin-bottom: 0;
+}
+.matching-answer {
+  width: 240px;
+  min-width: 0;
+  max-width: 100%;
+  margin-top: 22px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  text-align: center;
+  font-size: 16px;
+}
+.matching-answer th,
+.matching-answer td {
+  border: 1px solid #8c988d;
+  height: 38px;
+  padding: 0;
+}
+.matching-answer td {
+  height: 46px;
+}
+.review-item .matching-table {
+  font-size: 14px;
+}
 .reading-task > .eyebrow {
   font-size: 16px;
 }

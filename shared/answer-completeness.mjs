@@ -14,6 +14,12 @@ export function answerFilled(exercise, answer) {
     );
   if (exercise.type === "multiple")
     return Array.isArray(answer) && answer.length > 0;
+  if (exercise.type === "text" && exercise.matchingTable)
+    return (
+      typeof answer === "string" &&
+      answer.length === exercise.matchingTable.left.length &&
+      [...answer].every((cell) => cell.trim().length > 0)
+    );
   return typeof answer === "string" && answer.trim().length > 0;
 }
 export function missingAnswers(exercises, answers) {

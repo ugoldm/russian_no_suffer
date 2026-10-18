@@ -14,6 +14,12 @@ export interface Exercise {
   taskNumber?: number;
   label?: string;
   answerPlaceholder?: string;
+  matchingTable?: {
+    leftTitle: string;
+    rightTitle: string;
+    left: Option[];
+    right: Option[];
+  };
   score?: number;
   total?: number;
   key?: string[];

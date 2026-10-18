@@ -4,6 +4,7 @@ interface ExerciseLike {
   items?: ExerciseLike[];
   taskNumber?: number;
   label?: string;
+  matchingTable?: { left: { id: string; text: string }[] };
 }
 export interface MissingAnswer {
   position: number;
