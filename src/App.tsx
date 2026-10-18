@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useId,
   useRef,
   useState,
   type ReactNode,
@@ -38,6 +39,11 @@ import type { Answer, Attempt, Draft, Exercise, Overview, Test } from "./types";
 import { summarizeResults } from "./results-summary";
 import { formatReviewAnswer } from "./review-answer";
 import { compareTests } from "./test-order";
+import {
+  additionalTestTitle,
+  groupLibraryTests,
+  testTopicTitle,
+} from "./test-library";
 import { MatchingTable, MatchingAnswer } from "./MatchingExercise";
 import {
   answerFilled,
@@ -176,28 +182,37 @@ function Modal({
   title,
   onClose,
   children,
+  className = "",
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  className?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   useEffect(() => {
     const d = ref.current;
+    const previousFocus = document.activeElement;
     d?.showModal();
-    return () => d?.close();
+    return () => {
+      d?.close();
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected)
+        previousFocus.focus({ preventScroll: true });
+    };
   }, []);
   return (
     <dialog
       ref={ref}
-      className="modal"
+      className={`modal ${className}`}
+      aria-labelledby={titleId}
       onCancel={onClose}
       onClick={(e) => {
         if (e.target === ref.current) onClose();
       }}
     >
       <div className="modal-head">
-        <h2>{title}</h2>
+        <h2 id={titleId}>{title}</h2>
         <button className="icon-button" aria-label="Закрыть" onClick={onClose}>
           <X />
         </button>
@@ -265,6 +280,7 @@ function Teacher() {
   const [shareTest, setShareTest] = useState<Test | null>(null),
     [preview, setPreview] = useState<Test | null>(null),
     [detail, setDetail] = useState<Attempt | null>(null);
+  const [moreTestsKey, setMoreTestsKey] = useState<string | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false),
     [busy, setBusy] = useState(false);
   const overviewVersion = useRef(0),
@@ -406,9 +422,19 @@ function Teacher() {
     return (
       <TeacherLogin loading={loading} error={error} onSuccess={() => load()} />
     );
-  const tests = overview.tests
-    .filter((t) => exam === "Все" || t.exam === exam)
-    .sort(compareTests);
+  const libraryGroups = groupLibraryTests(overview.tests);
+  const tests = libraryGroups.filter(
+    (group) => exam === "Все" || group.tests[0].exam === exam,
+  );
+  const moreTests = libraryGroups.find((group) => group.key === moreTestsKey);
+  function showTestResults(t: Test) {
+    setMoreTestsKey(null);
+    setResultsExam(t.exam);
+    setTestFilter(t.id);
+    setSearch("");
+    setShowHidden(false);
+    openResults();
+  }
   const resultTests = Array.from(
     new Map([
       ...overview.results.map(
@@ -529,7 +555,7 @@ function Teacher() {
                 <div>
                   <h2>
                     Библиотека тестов{" "}
-                    <span className="count-pill">{overview.tests.length}</span>
+                    <span className="count-pill">{libraryGroups.length}</span>
                   </h2>
                   <p>Каждый тест — практика одного номера экзамена</p>
                 </div>
@@ -548,59 +574,22 @@ function Teacher() {
                 </div>
               </div>
               <div className="test-grid">
-                {tests.map((t) => (
-                  <article key={t.id} className="test-card">
-                    <div className="test-illustration" aria-hidden="true">
-                      <span>А</span>
-                      <span className="stress-mark">́</span>
-                      <div className="illustration-check">
-                        <Check size={17} />
-                      </div>
-                      <i>а</i>
-                      <b>я</b>
-                    </div>
-                    <h3>{testTitle(t)}</h3>
-                    <div className="test-facts">
-                      <span>
-                        <FileCheck2 size={15} />
-                        {exerciseCountText(t.exerciseCount)}
-                        {t.maximumScore ? ` · ${t.maximumScore} баллов` : ""}
-                      </span>
-                      <span>
-                        <Clock3 size={15} />≈ {estimatedDuration(t)}
-                      </span>
-                    </div>
-                    <div className="test-card-actions">
-                      <Button onClick={() => setShareTest(t)}>
-                        Поделиться ссылкой <Copy size={17} />
-                      </Button>
-                      <button
-                        className="text-button"
-                        disabled={busy}
-                        onClick={() => showPreview(t)}
-                      >
-                        Тест и ответы
-                      </button>
-                      <button
-                        className="text-button"
-                        onClick={() => {
-                          setResultsExam(t.exam);
-                          setTestFilter(t.id);
-                          setSearch("");
-                          setShowHidden(false);
-                          openResults();
-                        }}
-                      >
-                        Результаты (
-                        {
-                          overview.results.filter(
-                            (r) => r.testId === t.id && !r.teacherHidden,
-                          ).length
-                        }
-                        )
-                      </button>
-                    </div>
-                  </article>
+                {tests.map((group) => (
+                  <TestCard
+                    key={group.key}
+                    test={group.tests[0]}
+                    title={testTitle(group.tests[0]).replace(/\. Тест 1$/u, "")}
+                    results={overview.results}
+                    busy={busy}
+                    onShare={setShareTest}
+                    onPreview={showPreview}
+                    onResults={showTestResults}
+                    onMore={
+                      group.tests.length > 1
+                        ? () => setMoreTestsKey(group.key)
+                        : undefined
+                    }
+                  />
                 ))}
                 {tests.length === 0 && (
                   <Empty
@@ -865,6 +854,32 @@ function Teacher() {
           )}
         </main>
       </div>
+      {moreTests && (
+        <Modal
+          title={moreTests.title}
+          className="more-tests-modal"
+          onClose={() => setMoreTestsKey(null)}
+        >
+          <p>Дополнительные тесты по этому заданию</p>
+          <ErrorBox message={error} />
+          <div className="more-tests-list">
+            {moreTests.tests.slice(1).map((t, index) => (
+              <TestCard
+                key={t.id}
+                test={t}
+                title={additionalTestTitle(t, index + 2)}
+                description={testTopicTitle(t)}
+                compact
+                results={overview.results}
+                busy={busy}
+                onShare={setShareTest}
+                onPreview={showPreview}
+                onResults={showTestResults}
+              />
+            ))}
+          </div>
+        </Modal>
+      )}
       {shareTest && (
         <ShareModal test={shareTest} onClose={() => setShareTest(null)} />
       )}
@@ -890,6 +905,86 @@ function Teacher() {
         </Modal>
       )}
     </div>
+  );
+}
+function TestCard({
+  test,
+  title,
+  description,
+  results,
+  busy,
+  compact = false,
+  onShare,
+  onPreview,
+  onResults,
+  onMore,
+}: {
+  test: Test;
+  title: string;
+  description?: string;
+  results: Attempt[];
+  busy: boolean;
+  compact?: boolean;
+  onShare: (test: Test) => void;
+  onPreview: (test: Test) => void;
+  onResults: (test: Test) => void;
+  onMore?: () => void;
+}) {
+  return (
+    <article className="test-card">
+      {!compact && (
+        <div className="test-illustration" aria-hidden="true">
+          <span>А</span>
+          <span className="stress-mark">́</span>
+          <div className="illustration-check">
+            <Check size={17} />
+          </div>
+          <i>а</i>
+          <b>я</b>
+        </div>
+      )}
+      <h3>{title}</h3>
+      {description && <p className="test-topic">{description}</p>}
+      <div className="test-facts">
+        <span>
+          <FileCheck2 size={15} />
+          {exerciseCountText(test.exerciseCount)}
+          {test.maximumScore ? ` · ${test.maximumScore} баллов` : ""}
+        </span>
+        <span>
+          <Clock3 size={15} />≈ {estimatedDuration(test)}
+        </span>
+      </div>
+      <div className="test-card-actions">
+        <Button onClick={() => onShare(test)}>
+          Поделиться ссылкой <Copy size={17} />
+        </Button>
+        <button
+          className="text-button"
+          disabled={busy}
+          onClick={() => onPreview(test)}
+        >
+          Тест и ответы
+        </button>
+        <button className="text-button" onClick={() => onResults(test)}>
+          Результаты (
+          {
+            results.filter((r) => r.testId === test.id && !r.teacherHidden)
+              .length
+          }
+          )
+        </button>
+      </div>
+      {onMore && (
+        <button
+          className="text-button more-tests-button"
+          aria-haspopup="dialog"
+          onClick={onMore}
+        >
+          Больше тестов <ChevronRight size={15} />
+        </button>
+      )}
+    </article>
   );
 }
 function Empty({

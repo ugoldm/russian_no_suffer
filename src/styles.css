@@ -2061,6 +2061,40 @@ td small {
   justify-content: center;
 }
 
+.more-tests-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  font-size: 12px;
+}
+.more-tests-modal {
+  width: min(760px, calc(100% - 28px));
+}
+.more-tests-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.more-tests-list .text-button {
+  min-height: 44px;
+}
+.test-topic {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--green);
+}
+@media (max-width: 600px) {
+  .more-tests-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* A shared passage followed by independently scored tasks. */
 .reading-passage {
   white-space: pre-line;
