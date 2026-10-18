@@ -36,18 +36,20 @@ for (const [exam, taskNumber, count] of [
     });
   }
 }
-for (const [id, topic] of [
-  ["commas", "Запятые"],
-  ["dash", "Тире и двоеточие"],
+for (const [id, exam, taskNumber, topic] of [
+  ["commas", "ЕГЭ", 21, "Запятые"],
+  ["dash", "ЕГЭ", 21, "Тире и двоеточие"],
+  ["oge-commas", "ОГЭ", 5, "Запятые и кавычки"],
+  ["oge-dash", "ОГЭ", 5, "Тире и двоеточие"],
 ]) {
   state.tests.push({
     ...structuredClone(demoTest),
     id,
     versionId: `${id}-v1`,
     shareToken: `${id}-token`,
-    exam: "ЕГЭ",
-    taskNumber: 21,
-    title: `ЕГЭ. Задание № 21. ${topic}`,
+    exam,
+    taskNumber,
+    title: `${exam}. Задание № ${taskNumber}. ${topic}`,
   });
 }
 for (const t of state.tests) {
@@ -121,8 +123,8 @@ try {
       .getByRole("button", { name: "Открыть демонстрационный кабинет" })
       .click();
     await page.getByRole("heading", { name: /Библиотека тестов/ }).waitFor();
-    assert.equal(await page.locator(".test-grid .test-card").count(), 5);
-    assert.equal(await page.locator(".count-pill").textContent(), "5");
+    assert.equal(await page.locator(".test-grid .test-card").count(), 8);
+    assert.equal(await page.locator(".count-pill").textContent(), "8");
     assert.equal(
       await page
         .locator(".test-grid h3")
@@ -132,45 +134,49 @@ try {
     );
     assert.equal(
       await page.getByRole("button", { name: "Больше тестов" }).count(),
-      4,
+      3,
     );
-    const topicCard = page.locator(".test-grid .test-card").filter({
-      has: page.getByRole("heading", {
-        name: "ЕГЭ. Задание № 21. Запятые",
-        exact: true,
-      }),
-    });
-    await topicCard.getByRole("button", { name: "Больше тестов" }).click();
-    const topicModal = page.getByRole("dialog", {
-      name: "ЕГЭ. Задание № 21",
-      exact: true,
-    });
-    await topicModal.waitFor();
-    assert.equal(await topicModal.locator("h3").textContent(), "Тест 2");
-    assert.equal(
-      await topicModal.locator(".test-topic").textContent(),
-      "Тире и двоеточие",
-    );
-    await topicModal
-      .getByRole("button", { name: "Тест и ответы", exact: true })
-      .click();
-    const topicPreview = page.getByRole("dialog", {
-      name: "Предпросмотр теста",
-      exact: true,
-    });
-    await topicPreview.waitFor();
-    assert.equal(
-      await topicPreview.locator("h3").first().textContent(),
+    for (const title of [
+      "ЕГЭ. Задание № 21. Запятые",
       "ЕГЭ. Задание № 21. Тире и двоеточие",
-    );
-    await topicPreview
-      .getByRole("button", { name: "Закрыть", exact: true })
-      .click();
-    await topicModal
-      .getByRole("button", { name: "Закрыть", exact: true })
-      .click();
+      "ОГЭ. Задание № 5. Запятые и кавычки",
+      "ОГЭ. Задание № 5. Тире и двоеточие",
+    ]) {
+      const topicCard = page.locator(".test-grid .test-card").filter({
+        has: page.getByRole("heading", { name: title, exact: true }),
+      });
+      assert.equal(await topicCard.count(), 1);
+      assert.equal(
+        await topicCard.getByRole("button", { name: "Больше тестов" }).count(),
+        0,
+      );
+      assert.equal(
+        await topicCard
+          .getByRole("button", { name: "Поделиться ссылкой" })
+          .count(),
+        1,
+      );
+      assert.equal(
+        await topicCard
+          .getByRole("button", { name: "Результаты (1)", exact: true })
+          .count(),
+        1,
+      );
+      await topicCard
+        .getByRole("button", { name: "Тест и ответы", exact: true })
+        .click();
+      const preview = page.getByRole("dialog", {
+        name: "Предпросмотр теста",
+        exact: true,
+      });
+      await preview.waitFor();
+      assert.equal(await preview.locator("h3").first().textContent(), title);
+      await preview
+        .getByRole("button", { name: "Закрыть", exact: true })
+        .click();
+    }
     await page.getByRole("button", { name: "ОГЭ", exact: true }).click();
-    assert.equal(await page.locator(".test-grid .test-card").count(), 3);
+    assert.equal(await page.locator(".test-grid .test-card").count(), 5);
     await page.screenshot({
       path: `.local/test-library/catalog-${width}.png`,
       fullPage: true,
@@ -299,13 +305,14 @@ try {
     }
     await page.reload();
     await page.getByRole("heading", { name: /Библиотека тестов/ }).waitFor();
-    assert.equal(await page.locator(".test-grid .test-card").count(), 5);
+    assert.equal(await page.locator(".test-grid .test-card").count(), 8);
     assert.deepEqual(errors, []);
     report.push({
       width,
       height,
-      groups: 5,
-      additionalTestsChecked: 8,
+      groups: 8,
+      separateTopicsChecked: 4,
+      additionalTestsChecked: 7,
       errors,
     });
     await context.close();

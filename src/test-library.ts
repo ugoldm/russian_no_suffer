@@ -30,14 +30,15 @@ export function additionalTestTitle(test: LibraryTest, fallbackNumber: number) {
   return `Тест ${number || fallbackNumber}`;
 }
 
-// Group by the full assignment: a combined 9–12 test stays separate from 9.
+// Only numbered variants of the same title share a card. Named topics and
+// combined assignments keep separate cards even at the same task number.
 // Keep the original tests intact so every action uses its own IDs and link.
 export function groupLibraryTests<T extends LibraryTest>(tests: T[]) {
   const groups = new Map<string, { key: string; title: string; tests: T[] }>();
   for (const test of [...tests].sort(
     (a, b) => compareTests(a, b) || a.title.localeCompare(b.title, "ru"),
   )) {
-    const title = assignmentTitle(test);
+    const title = libraryTitle(test);
     const key = JSON.stringify([test.exam, test.taskNumber, title]);
     const group = groups.get(key);
     if (group) group.tests.push(test);
