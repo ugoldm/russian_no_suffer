@@ -146,6 +146,19 @@ export function validateTest(t) {
         )
           fail(`Ключ digitSet должен содержать цифры без повторов: ${e.id}`);
       }
+      if (
+        e.scoring !== undefined &&
+        (!e.scoring ||
+          e.scoring.type !== "positional" ||
+          Object.keys(e.scoring).length !== 1 ||
+          e.type !== "text" ||
+          e.matchingTable?.left?.length !== 5 ||
+          e.normalization?.digitSet ||
+          e.normalization?.ignoreCase ||
+          !e.key?.length ||
+          e.key.some((key) => !/^[1-9]{5}$/.test(key)))
+      )
+        fail(`Неверное позиционное оценивание ${e.id}`);
       if (e.matchingTable !== undefined) {
         const table = e.matchingTable;
         if (
@@ -190,11 +203,17 @@ export function validateTest(t) {
   };
   validateExercises(t.exercises);
   const maximumScore = t.exercises.reduce(
-    (sum, e) => sum + (e.type === "group" ? e.items.length : 1),
+    (sum, e) =>
+      sum +
+      (e.type === "group"
+        ? e.items.reduce((n, item) => n + (item.scoring ? 2 : 1), 0)
+        : e.scoring
+          ? 2
+          : 1),
     0,
   );
   if (t.maximumScore !== undefined && t.maximumScore !== maximumScore)
-    fail("Максимальный балл не совпадает с числом проверяемых заданий");
+    fail("Максимальный балл не совпадает с правилами оценивания заданий");
   return { ...t, demo: !!t.demo, exerciseCount: t.exercises.length };
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

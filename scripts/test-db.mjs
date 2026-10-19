@@ -1008,6 +1008,45 @@ try {
     completedArchive,
   );
   await db.exec("reset role");
+  // New positional rule is opt-in; historical work retains its saved score.
+  await db.exec(
+    readFileSync("supabase/migrations/014_matching_answers.sql", "utf8"),
+  );
+  await db.exec(
+    readFileSync("supabase/migrations/015_positional_scoring.sql", "utf8"),
+  );
+  const positional = {
+    type: "text",
+    key: ["12345"],
+    scoring: { type: "positional" },
+  };
+  for (let mask = 0; mask < 32; mask++) {
+    const raw = [..."12345"]
+      .map((digit, i) => (mask & (1 << i) ? digit : "9"))
+      .join("");
+    const matches = mask.toString(2).replaceAll("0", "").length;
+    const expected = matches === 5 ? 2 : matches >= 3 ? 1 : 0;
+    const checked = (
+      await db.query("select private.score_answer($1::jsonb,$2::jsonb) score", [
+        JSON.stringify(positional),
+        JSON.stringify(raw),
+      ])
+    ).rows[0].score;
+    assert.equal(checked, expected);
+  }
+  for (const raw of ["1234", "123456", "1 345", "12,45", "１２３４５", null])
+    assert.equal(
+      (
+        await db.query(
+          "select private.score_answer($1::jsonb,$2::jsonb) score",
+          [JSON.stringify(positional), JSON.stringify(raw)],
+        )
+      ).rows[0].score,
+      0,
+    );
+  await as(teacher, false);
+  assert.deepEqual(await call("teacher_result", { attemptId: next.id }), timed);
+  await db.exec("reset role");
   console.log(
     "Supabase migration verified: grading, RLS boundary, roles, idempotency, direct links, legacy upgrade, immutable versions, reversible result hiding, unread acknowledgement, demo archive with preserved work.",
   );

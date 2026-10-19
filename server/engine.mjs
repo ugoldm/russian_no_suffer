@@ -56,8 +56,11 @@ export function resultExercise(exercise, raw) {
       items,
       rawAnswer: raw ?? {},
       correct: items.every((item) => item.correct),
-      score: items.filter((item) => item.correct).length,
-      total: items.length,
+      score: items.reduce(
+        (sum, item) => sum + (item.score ?? Number(item.correct)),
+        0,
+      ),
+      total: items.reduce((sum, item) => sum + (item.total ?? 1), 0),
     };
   }
   return {
@@ -65,6 +68,9 @@ export function resultExercise(exercise, raw) {
     rawAnswer: raw ?? (exercise.type === "multiple" ? [] : ""),
     correct: grade(exercise, raw),
     correctAnswer: exercise.key,
+    ...(exercise.scoring
+      ? { score: scoreAnswer(exercise, raw), total: maximumPoints(exercise) }
+      : {}),
   };
 }
 export function publicTest(test) {
@@ -120,6 +126,23 @@ export function grade(exercise, raw) {
     submitted !== null &&
     exercise.key.some((k) => normalize(k) === submitted)
   );
+}
+// Point rules are explicit versioned content; ordinary exercises retain one point.
+export function maximumPoints(exercise) {
+  if (exercise.type === "group")
+    return exercise.items.reduce((sum, item) => sum + maximumPoints(item), 0);
+  return exercise.scoring?.type === "positional" ? 2 : 1;
+}
+export function scoreAnswer(exercise, raw) {
+  const correct = grade(exercise, raw); // Retain structural validation for all formats.
+  if (exercise.scoring?.type !== "positional") return Number(correct);
+  if (typeof raw !== "string" || !/^[1-9]{5}$/.test(raw)) return 0;
+  const matches = Math.max(
+    ...exercise.key.map(
+      (key) => [...key].filter((digit, i) => raw[i] === digit).length,
+    ),
+  );
+  return matches === 5 ? 2 : matches >= 3 ? 1 : 0;
 }
 // Upgrade existing local records without deleting attempts or their frozen versions.
 export function migrateState(state) {
@@ -339,12 +362,16 @@ export function execute(state, action, args, actor) {
       );
       const missing = missingAnswers(t.exercises, args.answers);
       if (missing.length) throw new AppError(missingAnswersMessage(missing));
-      const correct = answers.filter(({ exercise, raw }) =>
-        grade(exercise, raw),
-      ).length;
+      const correct = answers.reduce(
+        (sum, { exercise, raw }) => sum + scoreAnswer(exercise, raw),
+        0,
+      );
       p.answers = structuredClone(args.answers);
       p.correct = correct;
-      p.total = answers.length;
+      p.total = answers.reduce(
+        (sum, { exercise }) => sum + maximumPoints(exercise),
+        0,
+      );
       p.status = "submitted";
       p.teacherSeen = false;
       p.submittedAt = now;

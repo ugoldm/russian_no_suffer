@@ -38,6 +38,7 @@ import { captchaKey, login, logout, mode, rpc, teacherOverview } from "./api";
 import type { Answer, Attempt, Draft, Exercise, Overview, Test } from "./types";
 import { summarizeResults } from "./results-summary";
 import { formatReviewAnswer } from "./review-answer";
+import { submissionErrorText, submitWithRetry } from "./submission";
 import { compareTests } from "./test-order";
 import {
   additionalTestTitle,
@@ -1199,7 +1200,7 @@ function Review({
             </span>
             {!preview && (
               <strong>
-                {e.type === "group" ? (
+                {e.type === "group" || e.scoring ? (
                   `${e.score} из ${e.total} баллов`
                 ) : e.correct ? (
                   <>
@@ -1302,6 +1303,12 @@ function AnswerInput({
             <li key={o.id}>{o.text}</li>
           ))}
         </ol>
+      )}
+      {exercise.scoring?.type === "positional" && (
+        <p className="question-hint">
+          За 0–2 цифры на своих местах — 0 баллов, за 3–4 — 1 балл, за 5 — 2
+          балла.
+        </p>
       )}
       {exercise.type === "text" ? (
         <label className="field-label">
@@ -1516,10 +1523,12 @@ function Student({ token }: { token: string }) {
     setBusy(true);
     setError("");
     try {
-      const r = await rpc<Attempt>("submit_attempt", {
-        attemptId: draft.id,
-        answers: draft.answers,
-      });
+      const r = await submitWithRetry(() =>
+        rpc<Attempt>("submit_attempt", {
+          attemptId: draft.id,
+          answers: draft.answers,
+        }),
+      );
       setResult(r);
       setDraft(null);
       try {
@@ -1529,7 +1538,7 @@ function Student({ token }: { token: string }) {
         setStorageWarning(true);
       }
     } catch (e) {
-      setError(errorText(e));
+      setError(submissionErrorText(e));
     } finally {
       setBusy(false);
     }
@@ -1603,7 +1612,9 @@ function Student({ token }: { token: string }) {
                   </strong>
                   <p>
                     {result.correct} из {result.total}{" "}
-                    {result.exercises.some((e) => e.type === "group")
+                    {result.exercises.some(
+                      (e) => e.type === "group" || e.scoring,
+                    )
                       ? "баллов набрано"
                       : "упражнений выполнено верно"}
                   </p>

@@ -20,6 +20,7 @@ export interface Exercise {
     left: Option[];
     right: Option[];
   };
+  scoring?: { type: "positional" };
   score?: number;
   total?: number;
   key?: string[];

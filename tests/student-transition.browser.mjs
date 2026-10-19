@@ -1,6 +1,6 @@
 // Optional browser regression: uses an installed Playwright, synthetic data only.
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -18,6 +18,13 @@ const databasePath = join(directory, "test.sqlite");
 const api = createApp({ databasePath });
 const state = initialState();
 state.tests.push(groupedFixture());
+// Optional local content check. Source materials and keys remain outside Git.
+for (const path of (process.env.SUBMISSION_TEST_FILES || "")
+  .split(",")
+  .filter(Boolean)) {
+  const test = JSON.parse(readFileSync(path, "utf8"));
+  state.tests.push({ ...test, shareToken: `local-check-${test.versionId}` });
+}
 const db = new DatabaseSync(databasePath);
 db.prepare("UPDATE app_state SET payload=? WHERE id=1").run(
   JSON.stringify(state),
@@ -50,13 +57,14 @@ try {
   ]) {
     for (const test of state.tests) {
       const context = await browser.newContext({ viewport: { width, height } });
-      let failSubmission = width === 1366;
+      let failedSubmissionsRemaining = width === 1366 ? 2 : 0;
+      let loseSavedResponse = width === 390;
       await context.route("**/api/rpc", async (route) => {
         if (
           route.request().postDataJSON().action === "submit_attempt" &&
-          failSubmission
+          failedSubmissionsRemaining > 0
         ) {
-          failSubmission = false;
+          failedSubmissionsRemaining--;
           await route.abort("failed");
           return;
         }
@@ -64,6 +72,14 @@ try {
           url: apiUrl,
           headers: { origin: new URL(apiUrl).origin },
         });
+        if (
+          route.request().postDataJSON().action === "submit_attempt" &&
+          loseSavedResponse
+        ) {
+          loseSavedResponse = false;
+          await route.abort("failed");
+          return;
+        }
         await route.fulfill({ response });
       });
       const page = await context.newPage();
@@ -108,11 +124,37 @@ try {
           .getByRole("button", { name: "Отправить ответы", exact: true })
           .click();
       };
-      if (failSubmission) {
+      if (failedSubmissionsRemaining) {
+        const savedDraft = await page.evaluate(
+          () =>
+            Object.entries(localStorage).find(([key]) =>
+              key.startsWith("rns-draft:"),
+            )[1],
+        );
         await send();
         await page.getByRole("alert").waitFor();
+        assert.match(
+          await page.getByRole("alert").innerText(),
+          /Ответы остаются/,
+        );
         assert.equal(await page.locator(".result-score").count(), 0);
         assert.equal(await page.locator(".question-card").count(), 1);
+        await page.screenshot({
+          path: `.local/student-transition/${test.versionId}-${width}-network.png`,
+          fullPage: true,
+        });
+        assert.equal(failedSubmissionsRemaining, 0);
+        await page.reload();
+        await page.locator(".question-card").waitFor();
+        assert.equal(
+          await page.evaluate(
+            () =>
+              Object.entries(localStorage).find(([key]) =>
+                key.startsWith("rns-draft:"),
+              )[1],
+          ),
+          savedDraft,
+        );
       }
       // Model the DOM changes made by Google Translate: replace text nodes
       // with <font> elements while React still holds the original references.
@@ -149,13 +191,25 @@ try {
             key.startsWith("rns-result:"),
           )[1],
       );
+      const checkDb = new DatabaseSync(databasePath);
+      const persisted = JSON.parse(
+        checkDb.prepare("SELECT payload FROM app_state WHERE id=1").get()
+          .payload,
+      );
+      checkDb.close();
+      const savedAttempts = persisted.attempts.filter(
+        (attempt) => attempt.id === resultId,
+      );
+      assert.equal(savedAttempts.length, 1);
+      assert.equal(savedAttempts[0].status, "submitted");
+      assert.equal(savedAttempts[0].correct, savedAttempts[0].total);
       assert.ok(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth,
         ),
       );
       await page.screenshot({
-        path: `.local/student-transition/${test.id}-${width}.png`,
+        path: `.local/student-transition/${test.versionId}-${width}.png`,
       });
       await page.reload();
       await page.locator(".result-score").waitFor();
