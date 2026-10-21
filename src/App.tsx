@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useEffect,
   useId,
   useRef,
@@ -38,12 +39,14 @@ import { captchaKey, login, logout, mode, rpc, teacherOverview } from "./api";
 import type { Answer, Attempt, Draft, Exercise, Overview, Test } from "./types";
 import { summarizeResults } from "./results-summary";
 import { formatReviewAnswer } from "./review-answer";
+import { exerciseSections } from "./exercise-sections";
 import { submissionErrorText, submitWithRetry } from "./submission";
 import { compareTests } from "./test-order";
 import {
   additionalTestTitle,
   groupLibraryTests,
   testTopicTitle,
+  testDisplayTitle as testTitle,
 } from "./test-library";
 import { MatchingTable, MatchingAnswer } from "./MatchingExercise";
 import {
@@ -84,19 +87,6 @@ function ReadingPassage({ exercise }: { exercise: Exercise }) {
   parts.push(text.slice(cursor));
   return <div className="reading-passage">{parts}</div>;
 }
-const testTitle = (
-  test: Pick<Test, "exam" | "taskNumber"> & {
-    title?: string;
-    testTitle?: string;
-  },
-) => {
-  const base = `${test.exam}. Задание № ${test.taskNumber}`;
-  const savedTitle = test.title ?? test.testTitle;
-  return savedTitle?.startsWith(`${base}. `) ||
-    savedTitle?.startsWith(`${test.exam}. Задания № `)
-    ? savedTitle
-    : base;
-};
 const estimatedDuration = (
   test: Pick<Test, "exam" | "taskNumber" | "estimatedDuration">,
 ) =>
@@ -1185,90 +1175,104 @@ function Review({
   preview?: boolean;
   nested?: boolean;
 }) {
+  const sections = exerciseSections(exercises);
+  const sectionStarts = new Map(
+    sections
+      .filter((s) => !nested && s.taskNumber)
+      .map((s) => [s.start, s.taskNumber]),
+  );
   return (
     <div className="review-list">
       {exercises.map((e, i) => (
-        <article
-          className={`review-item ${preview ? "preview" : e.correct ? "correct" : "incorrect"}`}
-          key={e.id}
-        >
-          <div className="review-top">
-            <span>
-              {nested
-                ? e.label || `Задание № ${e.taskNumber}`
-                : `Упражнение ${i + 1}`}
-            </span>
-            {!preview && (
-              <strong>
-                {e.type === "group" || e.scoring ? (
-                  `${e.score} из ${e.total} баллов`
-                ) : e.correct ? (
-                  <>
-                    <CheckCircle2 size={16} />
-                    Верно
-                  </>
-                ) : (
-                  <>
-                    <X size={16} />
-                    Ошибка
-                  </>
-                )}
-              </strong>
-            )}
-          </div>
-          <h4>
-            <PromptText
-              text={e.matchingTable ? e.prompt.split(/\n\s*\n/)[0] : e.prompt}
-            />
-          </h4>
-          <MatchingTable exercise={e} />
-          {e.passage && <ReadingPassage exercise={e} />}
-          {e.type === "group" ? (
-            <Review exercises={e.items || []} preview={preview} nested />
-          ) : (
-            <>
-              {e.matchingTable && <MatchingAnswer exercise={e} />}
-              {!!e.options?.length && (
-                <ol className="review-options" aria-label="Варианты ответов">
-                  {e.options?.map((o) => (
-                    <li key={o.id}>{o.text}</li>
-                  ))}
-                </ol>
-              )}
-              {preview && e.type !== "text" && !!e.options?.length && (
-                <p>
-                  <span className="muted">Номера правильных ответов:</span>{" "}
-                  <strong>
-                    {formatReviewAnswer(
-                      e,
-                      e.correctAnswer || e.key,
-                      "Не указаны",
-                    )}
-                  </strong>
-                </p>
-              )}
+        <Fragment key={e.id}>
+          {sectionStarts.has(i) && (
+            <h3 className="review-section-heading">
+              Задание № {sectionStarts.get(i)}
+            </h3>
+          )}
+          <article
+            className={`review-item ${preview ? "preview" : e.correct ? "correct" : "incorrect"}`}
+          >
+            <div className="review-top">
+              <span>
+                {nested
+                  ? e.label || `Задание № ${e.taskNumber}`
+                  : `Упражнение ${i + 1}`}
+              </span>
               {!preview && (
-                <p>
-                  <span className="muted">
-                    {e.type === "text" ? "Ответ ученика:" : "Выбранный ответ:"}
-                  </span>{" "}
-                  <strong>{formatReviewAnswer(e, e.rawAnswer)}</strong>
-                </p>
+                <strong>
+                  {e.type === "group" || e.scoring ? (
+                    `${e.score} из ${e.total} баллов`
+                  ) : e.correct ? (
+                    <>
+                      <CheckCircle2 size={16} />
+                      Верно
+                    </>
+                  ) : (
+                    <>
+                      <X size={16} />
+                      Ошибка
+                    </>
+                  )}
+                </strong>
               )}
-              {(!preview || e.type === "text") && (
-                <p>
-                  <span className="muted">Правильный ответ:</span>{" "}
-                  <strong>
-                    {formatReviewAnswer(e, e.correctAnswer || e.key)}
-                  </strong>
-                </p>
-              )}
-            </>
-          )}
-          {!preview && e.explanation?.trim() && (
-            <div className="explanation">{e.explanation}</div>
-          )}
-        </article>
+            </div>
+            <h4>
+              <PromptText
+                text={e.matchingTable ? e.prompt.split(/\n\s*\n/)[0] : e.prompt}
+              />
+            </h4>
+            <MatchingTable exercise={e} />
+            {e.passage && <ReadingPassage exercise={e} />}
+            {e.type === "group" ? (
+              <Review exercises={e.items || []} preview={preview} nested />
+            ) : (
+              <>
+                {e.matchingTable && <MatchingAnswer exercise={e} />}
+                {!!e.options?.length && (
+                  <ol className="review-options" aria-label="Варианты ответов">
+                    {e.options?.map((o) => (
+                      <li key={o.id}>{o.text}</li>
+                    ))}
+                  </ol>
+                )}
+                {preview && e.type !== "text" && !!e.options?.length && (
+                  <p>
+                    <span className="muted">Номера правильных ответов:</span>{" "}
+                    <strong>
+                      {formatReviewAnswer(
+                        e,
+                        e.correctAnswer || e.key,
+                        "Не указаны",
+                      )}
+                    </strong>
+                  </p>
+                )}
+                {!preview && (
+                  <p>
+                    <span className="muted">
+                      {e.type === "text"
+                        ? "Ответ ученика:"
+                        : "Выбранный ответ:"}
+                    </span>{" "}
+                    <strong>{formatReviewAnswer(e, e.rawAnswer)}</strong>
+                  </p>
+                )}
+                {(!preview || e.type === "text") && (
+                  <p>
+                    <span className="muted">Правильный ответ:</span>{" "}
+                    <strong>
+                      {formatReviewAnswer(e, e.correctAnswer || e.key)}
+                    </strong>
+                  </p>
+                )}
+              </>
+            )}
+            {!preview && e.explanation?.trim() && (
+              <div className="explanation">{e.explanation}</div>
+            )}
+          </article>
+        </Fragment>
       ))}
     </div>
   );
@@ -1544,6 +1548,7 @@ function Student({ token }: { token: string }) {
     }
   }
   const exercise = test?.exercises[draft?.position || 0];
+  const sections = exerciseSections(test?.exercises || []);
   const answered =
     draft && test
       ? test.exercises.filter((e) => {
@@ -1828,33 +1833,61 @@ function Student({ token }: { token: string }) {
                 }}
               />
             </div>
-            <div className="question-tabs" aria-label="Упражнения">
-              {test?.exercises.map((e, i) => {
-                const a = draft.answers[e.id];
-                const filled = answerFilled(e, a);
-                return (
-                  <button
-                    aria-label={`Упражнение ${i + 1}${filled ? ", ответ заполнен" : validationAttempted ? ", нет ответа" : ""}`}
-                    aria-current={draft.position === i ? "step" : undefined}
-                    className={`${draft.position === i ? "current" : ""} ${filled ? "filled" : validationAttempted ? "missing" : ""}`}
-                    key={e.id}
-                    onClick={() => setDraft({ ...draft, position: i })}
+            <div
+              className={sections.length > 1 ? "question-sections" : undefined}
+              aria-label="Упражнения"
+            >
+              {sections.map((section) => (
+                <div className="question-section" key={section.start}>
+                  {section.taskNumber && (
+                    <div className="question-section-heading">
+                      Задание № {section.taskNumber}
+                    </div>
+                  )}
+                  <div
+                    className="question-tabs"
+                    role="group"
+                    aria-label={
+                      section.taskNumber
+                        ? `Задание № ${section.taskNumber}`
+                        : "Номера упражнений"
+                    }
                   >
-                    {filled && draft.position !== i ? (
-                      <Check size={17} />
-                    ) : (
-                      <>
-                        {i + 1}
-                        {validationAttempted && !filled && (
-                          <span className="missing-marker" aria-hidden="true">
-                            !
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </button>
-                );
-              })}
+                    {section.exercises.map((e, offset) => {
+                      const i = section.start + offset;
+                      const a = draft.answers[e.id];
+                      const filled = answerFilled(e, a);
+                      return (
+                        <button
+                          aria-label={`Упражнение ${i + 1}${filled ? ", ответ заполнен" : validationAttempted ? ", нет ответа" : ""}`}
+                          aria-current={
+                            draft.position === i ? "step" : undefined
+                          }
+                          className={`${draft.position === i ? "current" : ""} ${filled ? "filled" : validationAttempted ? "missing" : ""}`}
+                          key={e.id}
+                          onClick={() => setDraft({ ...draft, position: i })}
+                        >
+                          {filled && draft.position !== i ? (
+                            <Check size={17} />
+                          ) : (
+                            <>
+                              {i + 1}
+                              {validationAttempted && !filled && (
+                                <span
+                                  className="missing-marker"
+                                  aria-hidden="true"
+                                >
+                                  !
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
             <section
               className="question-card"
@@ -1864,6 +1897,9 @@ function Student({ token }: { token: string }) {
               aria-label={`Упражнение ${draft.position + 1}`}
             >
               <div className="eyebrow">
+                {exercise?.taskNumber && sections.length > 1
+                  ? `ЗАДАНИЕ ${test.exam} № ${exercise.taskNumber} · `
+                  : ""}
                 УПРАЖНЕНИЕ {draft.position + 1} ИЗ {test?.exerciseCount}
               </div>
               <h1>

@@ -1344,6 +1344,27 @@ td small {
   gap: 9px;
   margin: 23px 0;
 }
+.question-sections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 12px;
+  margin: 23px 0;
+}
+.question-section-heading {
+  color: var(--green-dark);
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.student-page-quiz .question-sections .question-tabs {
+  margin: 0;
+}
+.review-section-heading {
+  margin: 8px 0 0;
+  color: var(--green-dark);
+  font-size: 16px;
+  font-weight: 600;
+}
 .question-tabs button {
   flex-shrink: 0;
   width: 35px;
@@ -1541,6 +1562,9 @@ td small {
     gap: 6px;
     margin: 20px 0;
   }
+  .student-page-quiz .question-sections {
+    margin: 20px 0;
+  }
   .student-page-quiz .question-tabs button {
     width: 32px;
     height: 32px;
@@ -1622,6 +1646,9 @@ td small {
     margin-bottom: 10px;
   }
   .student-page-quiz .question-tabs {
+    margin: 12px 0;
+  }
+  .student-page-quiz .question-sections {
     margin: 12px 0;
   }
   .student-page-quiz .question-card {
@@ -2159,6 +2186,7 @@ td small {
 }
 .matching-table td p {
   margin: 0 0 8px;
+  white-space: pre-line;
 }
 .matching-table td p:last-child {
   margin-bottom: 0;

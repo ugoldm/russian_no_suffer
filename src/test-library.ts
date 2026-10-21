@@ -8,7 +8,34 @@ type LibraryTest = {
 
 const seriesSuffix = /\. Тест (\d+)$/u;
 
+// These three existing series are now two separate homework cards.
+// Apply aliases in the UI so published versions and saved attempts stay intact.
+function homeworkNumber(test: Omit<LibraryTest, "title"> & { title?: string }) {
+  if (test.exam !== "ОГЭ" || ![4, 6, 7].includes(test.taskNumber))
+    return undefined;
+  return test.title?.match(
+    new RegExp(
+      `^ОГЭ\\. Задание № ${test.taskNumber}\\. (?:Тест |ДЗ №)([1-9]\\d*)$`,
+      "u",
+    ),
+  )?.[1];
+}
+
+export function testDisplayTitle(
+  test: Omit<LibraryTest, "title"> & { title?: string; testTitle?: string },
+) {
+  const base = `${test.exam}. Задание № ${test.taskNumber}`;
+  const savedTitle = test.title ?? test.testTitle;
+  const number = homeworkNumber({ ...test, title: savedTitle });
+  if (number) return `${base}. ДЗ №${number}`;
+  return savedTitle?.startsWith(`${base}. `) ||
+    savedTitle?.startsWith(`${test.exam}. Задания № `)
+    ? savedTitle
+    : base;
+}
+
 export function libraryTitle(test: LibraryTest) {
+  if (homeworkNumber(test)) return testDisplayTitle(test);
   return test.title.replace(seriesSuffix, "");
 }
 
@@ -38,6 +65,8 @@ export function groupLibraryTests<T extends LibraryTest>(tests: T[]) {
   for (const test of [...tests].sort(
     (a, b) => compareTests(a, b) || a.title.localeCompare(b.title, "ru"),
   )) {
+    const homework = homeworkNumber(test);
+    if (homework && Number(homework) > 2) continue;
     const title = libraryTitle(test);
     const key = JSON.stringify([test.exam, test.taskNumber, title]);
     const group = groups.get(key);

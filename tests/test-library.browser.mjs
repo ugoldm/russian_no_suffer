@@ -123,8 +123,8 @@ try {
       .getByRole("button", { name: "Открыть демонстрационный кабинет" })
       .click();
     await page.getByRole("heading", { name: /Библиотека тестов/ }).waitFor();
-    assert.equal(await page.locator(".test-grid .test-card").count(), 8);
-    assert.equal(await page.locator(".count-pill").textContent(), "8");
+    assert.equal(await page.locator(".test-grid .test-card").count(), 11);
+    assert.equal(await page.locator(".count-pill").textContent(), "11");
     assert.equal(
       await page
         .locator(".test-grid h3")
@@ -134,7 +134,7 @@ try {
     );
     assert.equal(
       await page.getByRole("button", { name: "Больше тестов" }).count(),
-      3,
+      0,
     );
     for (const title of [
       "ЕГЭ. Задание № 21. Запятые",
@@ -176,43 +176,35 @@ try {
         .click();
     }
     await page.getByRole("button", { name: "ОГЭ", exact: true }).click();
-    assert.equal(await page.locator(".test-grid .test-card").count(), 5);
+    assert.equal(await page.locator(".test-grid .test-card").count(), 8);
+    assert.equal(
+      await page
+        .locator(".test-grid h3")
+        .filter({ hasText: /ДЗ №[34]|Тест [34]/ })
+        .count(),
+      0,
+    );
+    const layout = await page.evaluate(() => ({
+      page: document.documentElement.scrollWidth,
+      viewport: innerWidth,
+    }));
+    assert.ok(layout.page <= layout.viewport, JSON.stringify(layout));
     await page.screenshot({
       path: `.local/test-library/catalog-${width}.png`,
       fullPage: true,
     });
     for (const task of [4, 6, 7]) {
-      const title = `ОГЭ. Задание № ${task}`;
-      const card = page.locator(".test-grid .test-card").filter({
-        has: page.getByRole("heading", { name: title, exact: true }),
-      });
-      const moreButton = card.getByRole("button", { name: "Больше тестов" });
-      await moreButton.click();
-      const modal = page.getByRole("dialog", { name: title, exact: true });
-      await modal.waitFor();
-      assert.deepEqual(
-        await modal.locator("h3").allTextContents(),
-        task === 7 ? ["Тест 2"] : ["Тест 2", "Тест 3", "Тест 4"],
-      );
-      const layout = await modal.evaluate((d) => ({
-        width: d.clientWidth,
-        scrollWidth: d.scrollWidth,
-        viewport: innerWidth,
-        pageWidth: document.documentElement.scrollWidth,
-      }));
-      assert.ok(layout.scrollWidth <= layout.width + 1, JSON.stringify(layout));
-      assert.ok(layout.pageWidth <= layout.viewport, JSON.stringify(layout));
-      if (task === 4)
-        await page.screenshot({
-          path: `.local/test-library/modal-${width}.png`,
+      for (const number of [1, 2]) {
+        const title = `ОГЭ. Задание № ${task}. ДЗ №${number}`;
+        const card = page.locator(".test-grid .test-card").filter({
+          has: page.getByRole("heading", { name: title, exact: true }),
         });
-      for (const number of task === 7 ? [2] : [2, 3, 4]) {
-        const extra = modal.locator(".test-card").filter({
-          has: page.getByRole("heading", {
-            name: `Тест ${number}`,
-            exact: true,
-          }),
-        });
+        assert.equal(await card.count(), 1);
+        assert.equal(
+          await card.getByRole("button", { name: "Больше тестов" }).count(),
+          0,
+        );
+        const extra = card;
         const target = state.tests.find(
           (t) =>
             t.exam === "ОГЭ" &&
@@ -241,11 +233,11 @@ try {
           await share.getByRole("link", { name: "Открыть тест" }).click();
           const popup = await popupPromise;
           await popup
-            .getByRole("heading", { name: target.title, exact: true })
+            .getByRole("heading", { name: title, exact: true })
             .waitFor();
           await popup.reload();
           await popup
-            .getByRole("heading", { name: target.title, exact: true })
+            .getByRole("heading", { name: title, exact: true })
             .waitFor();
           await popup.close();
         }
@@ -265,54 +257,44 @@ try {
           exact: true,
         });
         await preview.waitFor();
-        assert.equal(
-          await preview.locator("h3").first().textContent(),
-          target.title,
-        );
+        assert.equal(await preview.locator("h3").first().textContent(), title);
         await preview
           .getByRole("button", { name: "Закрыть", exact: true })
           .click();
         await preview.waitFor({ state: "detached" });
+        await extra
+          .getByRole("button", { name: "Результаты (1)", exact: true })
+          .click();
+        assert.equal(await page.getByRole("dialog").count(), 0);
+        assert.equal(
+          await page.locator(".results-test-field select").inputValue(),
+          `ОГЭ-${task}-${number}`,
+        );
+        assert.equal(await page.locator("tbody tr").count(), 1);
+        assert.ok(
+          (await page.locator("tbody").textContent()).includes(
+            `Проверка ОГЭ-${task}-${number}`,
+          ),
+        );
+        const libraryNav = page.getByRole("button", {
+          name: "Библиотека тестов",
+          exact: true,
+        });
+        if (width <= 760)
+          await page.getByRole("button", { name: "Открыть меню" }).click();
+        await libraryNav.click();
       }
-      await modal.getByRole("button", { name: "Закрыть", exact: true }).click();
-      assert.equal(
-        await moreButton.evaluate((el) => document.activeElement === el),
-        true,
-      );
-      await moreButton.click();
-      const extra = modal.locator(".test-card").first();
-      await extra
-        .getByRole("button", { name: "Результаты (1)", exact: true })
-        .click();
-      assert.equal(await page.getByRole("dialog").count(), 0);
-      assert.equal(
-        await page.locator(".results-test-field select").inputValue(),
-        `ОГЭ-${task}-2`,
-      );
-      assert.equal(await page.locator("tbody tr").count(), 1);
-      assert.ok(
-        (await page.locator("tbody").textContent()).includes(
-          `Проверка ОГЭ-${task}-2`,
-        ),
-      );
-      const libraryNav = page.getByRole("button", {
-        name: "Библиотека тестов",
-        exact: true,
-      });
-      if (width <= 760)
-        await page.getByRole("button", { name: "Открыть меню" }).click();
-      await libraryNav.click();
     }
     await page.reload();
     await page.getByRole("heading", { name: /Библиотека тестов/ }).waitFor();
-    assert.equal(await page.locator(".test-grid .test-card").count(), 8);
+    assert.equal(await page.locator(".test-grid .test-card").count(), 11);
     assert.deepEqual(errors, []);
     report.push({
       width,
       height,
-      groups: 8,
+      cards: 11,
       separateTopicsChecked: 4,
-      additionalTestsChecked: 7,
+      homeworkCardsChecked: 6,
       errors,
     });
     await context.close();

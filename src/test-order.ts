@@ -5,7 +5,7 @@ type OrderedTest = {
 };
 
 const seriesNumber = (test: OrderedTest) =>
-  Number(test.title?.match(/\. Тест (\d+)$/u)?.[1] || 0);
+  Number(test.title?.match(/\. (?:Тест |ДЗ №)(\d+)$/u)?.[1] || 0);
 
 export function compareTests(a: OrderedTest, b: OrderedTest) {
   const examOrder = (exam: string) => (exam === "ЕГЭ" ? 0 : 1);
