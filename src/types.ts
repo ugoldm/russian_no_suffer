@@ -13,6 +13,7 @@ export interface Exercise {
   items?: Exercise[];
   taskNumber?: number;
   label?: string;
+  navigationLabel?: string;
   answerPlaceholder?: string;
   matchingTable?: {
     leftTitle: string;
@@ -44,6 +45,7 @@ export interface Test {
   description: string;
   source: string;
   exerciseCount: number;
+  taskCount?: number;
   estimatedDuration?: string;
   maximumScore?: number;
   exercises: Exercise[];

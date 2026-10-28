@@ -4,9 +4,25 @@ type LibraryTest = {
   exam: string;
   taskNumber: number;
   title: string;
+  id?: string;
+  testId?: string;
 };
 
 const seriesSuffix = /\. Тест (\d+)$/u;
+
+// Rename these two published mocks without changing their links or saved work.
+function renamedMockTitle(test: Omit<LibraryTest, "title"> & { title?: string }) {
+  const grade = {
+    "ege-probnik-1-grade-10": 10,
+    "ege-probnik-1-grade-11": 11,
+  }[test.testId ?? test.id ?? ""];
+  if (
+    grade &&
+    test.exam === "ЕГЭ" &&
+    test.title === `ЕГЭ. Пробник № 1. ${grade} класс`
+  )
+    return `ЕГЭ. Пробник № 2. ${grade} класс`;
+}
 
 // These three existing series are now two separate homework cards.
 // Apply aliases in the UI so published versions and saved attempts stay intact.
@@ -28,15 +44,18 @@ export function testDisplayTitle(
   const savedTitle = test.title ?? test.testTitle;
   const number = homeworkNumber({ ...test, title: savedTitle });
   if (number) return `${base}. ДЗ №${number}`;
+  const renamed = renamedMockTitle({ ...test, title: savedTitle });
+  if (renamed) return renamed;
   return savedTitle?.startsWith(`${base}. `) ||
-    savedTitle?.startsWith(`${test.exam}. Задания № `)
+    savedTitle?.startsWith(`${test.exam}. Задания № `) ||
+    savedTitle?.startsWith(`${test.exam}. Пробник`)
     ? savedTitle
     : base;
 }
 
 export function libraryTitle(test: LibraryTest) {
   if (homeworkNumber(test)) return testDisplayTitle(test);
-  return test.title.replace(seriesSuffix, "");
+  return (renamedMockTitle(test) ?? test.title).replace(seriesSuffix, "");
 }
 
 function assignmentTitle(test: LibraryTest) {

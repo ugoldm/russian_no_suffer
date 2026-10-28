@@ -4,7 +4,10 @@ import { dirname, resolve } from "node:path";
 import { randomUUID, createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 export function testTopic(test) {
-  if (test.title?.startsWith(`${test.exam}. Задания № `))
+  if (
+    test.title?.startsWith(`${test.exam}. Задания № `) ||
+    test.title?.startsWith(`${test.exam}. Пробник`)
+  )
     return test.title.slice(test.exam.length + 2);
   const prefix = `${test.exam}. Задание № ${test.taskNumber}. `;
   return test.title?.startsWith(prefix)
@@ -49,6 +52,13 @@ export function validateTest(t) {
       if (typeof e.id !== "string" || !e.id || ids.has(e.id))
         fail("Неправильный или повторяющийся ID упражнения");
       ids.add(e.id);
+      if (
+        e.navigationLabel !== undefined &&
+        (nested ||
+          typeof e.navigationLabel !== "string" ||
+          !/^\d{1,2}(?:–\d{1,2})?$/.test(e.navigationLabel))
+      )
+        fail(`Неверная подпись навигации ${e.id}`);
       if (
         !["single", "multiple", "text", "group"].includes(e.type) ||
         typeof e.prompt !== "string" ||
@@ -202,6 +212,12 @@ export function validateTest(t) {
     }
   };
   validateExercises(t.exercises);
+  const taskCount = t.exercises.reduce(
+    (sum, e) => sum + (e.type === "group" ? e.items.length : 1),
+    0,
+  );
+  if (t.taskCount !== undefined && t.taskCount !== taskCount)
+    fail("Количество заданий не совпадает с составом теста");
   const maximumScore = t.exercises.reduce(
     (sum, e) =>
       sum +
@@ -240,7 +256,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const literal = delimiter + JSON.stringify(t) + delimiter;
     const prefixSql =
       "(data->>'exam')||'. Задание № '||(data->>'taskNumber')||'. '";
-    const topicSql = `case when position((${prefixSql}) in (data->>'title'))=1 then btrim(substr(data->>'title',length(${prefixSql})+1)) when position((data->>'exam')||'. Задания № ' in (data->>'title'))=1 then substr(data->>'title',length(data->>'exam')+3) else '' end`;
+    const topicSql = `case when position((${prefixSql}) in (data->>'title'))=1 then btrim(substr(data->>'title',length(${prefixSql})+1)) when position((data->>'exam')||'. Задания № ' in (data->>'title'))=1 or position((data->>'exam')||'. Пробник' in (data->>'title'))=1 then substr(data->>'title',length(data->>'exam')+3) else '' end`;
     const sql = `-- Import SHA256: ${createHash("sha256").update(raw).digest("hex")}\n-- Generated content. Review as teacher before publishing.\ndo $import$\ndeclare new_data jsonb := ${literal}::jsonb; existing jsonb;\nbegin\n  if not exists(select 1 from private.teachers where user_id=${quote(owner)}::uuid) then raise exception 'Teacher is not allowlisted'; end if;\n  select data into existing from private.tests where version_id=${quote(t.versionId)};\n  if existing is not null then\n    if existing is distinct from new_data or not exists(select 1 from private.tests where version_id=${quote(t.versionId)} and owner_id=${quote(owner)}::uuid) then raise exception 'Version already exists with different content or owner'; end if;\n  else\n    if exists(select 1 from private.tests where owner_id=${quote(owner)}::uuid and data->>'exam'=new_data->>'exam' and data->>'year'=new_data->>'year' and data->'taskNumber'=new_data->'taskNumber' and (${topicSql})=${quote(testTopic(t))} and data->>'id'<>new_data->>'id') then raise exception 'This exam number already has another test ID'; end if;\n    insert into private.tests(version_id,owner_id,data) values(${quote(t.versionId)},${quote(owner)}::uuid,new_data);\n  end if;\nend $import$;\n`;
     mkdirSync(dirname(dest), { recursive: true });
     writeFileSync(dest, sql);

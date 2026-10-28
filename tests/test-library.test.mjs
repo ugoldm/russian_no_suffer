@@ -118,3 +118,20 @@ test("homework aliases preserve named topics, other exams and combined assignmen
     assert.equal(groupLibraryTests([t]).length, 1);
   }
 });
+
+test("grade-specific mock exams retain their titles in library, student view and results", () => {
+  const tests = [10, 11].map((grade) => ({
+    exam: "ЕГЭ",
+    taskNumber: 1,
+    title: `ЕГЭ. Пробник № 1. ${grade} класс`,
+  }));
+  assert.equal(groupLibraryTests(tests).length, 2);
+  for (const t of tests) {
+    assert.equal(testDisplayTitle(t), t.title);
+    assert.equal(
+      testDisplayTitle({ ...t, title: undefined, testTitle: t.title }),
+      t.title,
+    );
+    assert.equal(libraryTitle(t), t.title);
+  }
+});

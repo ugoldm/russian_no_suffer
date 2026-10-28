@@ -76,15 +76,19 @@ function PromptText({ text }: { text: string | undefined }) {
 }
 function ReadingPassage({ exercise }: { exercise: Exercise }) {
   const text = exercise.passage || "";
+  const compactBreaks = (value: string) =>
+    value.replace(/\r?\n(?:[ \t]*\r?\n)+/g, "\n");
   const parts: ReactNode[] = [];
   let cursor = 0;
   for (const { start, end } of exercise.passageHighlights || []) {
     if (start < cursor || end <= start || end > text.length) continue;
-    parts.push(text.slice(cursor, start));
-    parts.push(<strong key={start}>{text.slice(start, end)}</strong>);
+    parts.push(compactBreaks(text.slice(cursor, start)));
+    parts.push(
+      <strong key={start}>{compactBreaks(text.slice(start, end))}</strong>,
+    );
     cursor = end;
   }
-  parts.push(text.slice(cursor));
+  parts.push(compactBreaks(text.slice(cursor)));
   return <div className="reading-passage">{parts}</div>;
 }
 const estimatedDuration = (
@@ -92,15 +96,18 @@ const estimatedDuration = (
 ) =>
   test.estimatedDuration ||
   (test.exam === "ЕГЭ" && test.taskNumber === 9 ? "20–30 минут" : "5–10 минут");
-const exerciseCountText = (count: number) => {
+const exerciseCountText = (
+  count: number,
+  forms = ["упражнение", "упражнения", "упражнений"],
+) => {
   const ending =
     count % 100 >= 11 && count % 100 <= 14
-      ? "упражнений"
+      ? forms[2]
       : count % 10 === 1
-        ? "упражнение"
+        ? forms[0]
         : count % 10 >= 2 && count % 10 <= 4
-          ? "упражнения"
-          : "упражнений";
+          ? forms[1]
+          : forms[2];
   return `${count} ${ending}`;
 };
 const formatDate = (date: string) =>
@@ -939,7 +946,13 @@ function TestCard({
       <div className="test-facts">
         <span>
           <FileCheck2 size={15} />
-          {exerciseCountText(test.exerciseCount)}
+          {test.taskCount
+            ? exerciseCountText(test.taskCount, [
+                "задание",
+                "задания",
+                "заданий",
+              ])
+            : exerciseCountText(test.exerciseCount)}
           {test.maximumScore ? ` · ${test.maximumScore} баллов` : ""}
         </span>
         <span>
@@ -1197,7 +1210,7 @@ function Review({
               <span>
                 {nested
                   ? e.label || `Задание № ${e.taskNumber}`
-                  : `Упражнение ${i + 1}`}
+                  : (e.navigationLabel && e.label) || `Упражнение ${i + 1}`}
               </span>
               {!preview && (
                 <strong>
@@ -1674,7 +1687,13 @@ function Student({ token }: { token: string }) {
             <div className="student-test-facts">
               <span>
                 <FileCheck2 size={17} />
-                {exerciseCountText(test?.exerciseCount || 0)}
+                {test.taskCount
+                  ? exerciseCountText(test.taskCount, [
+                      "задание",
+                      "задания",
+                      "заданий",
+                    ])
+                  : exerciseCountText(test.exerciseCount)}
                 {test.maximumScore ? ` · ${test.maximumScore} баллов` : ""}
               </span>
               <span>
@@ -1859,11 +1878,11 @@ function Student({ token }: { token: string }) {
                       const filled = answerFilled(e, a);
                       return (
                         <button
-                          aria-label={`Упражнение ${i + 1}${filled ? ", ответ заполнен" : validationAttempted ? ", нет ответа" : ""}`}
+                          aria-label={`${e.navigationLabel ? e.label || `Задание № ${e.navigationLabel}` : `Упражнение ${i + 1}`}${filled ? ", ответ заполнен" : validationAttempted ? ", нет ответа" : ""}`}
                           aria-current={
                             draft.position === i ? "step" : undefined
                           }
-                          className={`${draft.position === i ? "current" : ""} ${filled ? "filled" : validationAttempted ? "missing" : ""}`}
+                          className={`${draft.position === i ? "current" : ""} ${filled ? "filled" : validationAttempted ? "missing" : ""} ${e.navigationLabel?.includes("–") ? "question-number-range" : ""}`}
                           key={e.id}
                           onClick={() => setDraft({ ...draft, position: i })}
                         >
@@ -1871,7 +1890,7 @@ function Student({ token }: { token: string }) {
                             <Check size={17} />
                           ) : (
                             <>
-                              {i + 1}
+                              {e.navigationLabel || i + 1}
                               {validationAttempted && !filled && (
                                 <span
                                   className="missing-marker"
@@ -1897,9 +1916,11 @@ function Student({ token }: { token: string }) {
               aria-label={`Упражнение ${draft.position + 1}`}
             >
               <div className="eyebrow">
-                {exercise?.taskNumber && sections.length > 1
-                  ? `ЗАДАНИЕ ${test.exam} № ${exercise.taskNumber} · `
-                  : ""}
+                {exercise?.navigationLabel && exercise.label
+                  ? `${exercise.label} · `
+                  : exercise?.taskNumber && sections.length > 1
+                    ? `ЗАДАНИЕ ${test.exam} № ${exercise.taskNumber} · `
+                    : ""}
                 УПРАЖНЕНИЕ {draft.position + 1} ИЗ {test?.exerciseCount}
               </div>
               <h1>

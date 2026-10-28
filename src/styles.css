@@ -1382,6 +1382,10 @@ td small {
   border-color: #255746;
   color: white;
 }
+.student-page .question-tabs button.question-number-range {
+  width: auto;
+  padding-inline: 8px;
+}
 .question-tabs button.filled:not(.current) {
   background: #e0ecd2;
   border-color: #c9dcbc;

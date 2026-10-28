@@ -7,6 +7,64 @@ import { createApp } from "../server/index.mjs";
 import { demoTest } from "../server/demo-content.mjs";
 import { execute } from "../server/engine.mjs";
 import { importLocal } from "../scripts/import-local.mjs";
+import { validateTest, testTopic } from "../scripts/import-sql.mjs";
+
+test("mock exams for two grades coexist with existing task-one content and cannot steal a topic", () => {
+  const dir = mkdtempSync(tmpdir() + "/rns-mock-import-");
+  const path = dir + "/demo.sqlite";
+  const app = createApp({ databasePath: path });
+  const db = new DatabaseSync(path);
+  const read = () =>
+    JSON.parse(
+      db.prepare("SELECT payload FROM app_state WHERE id=1").get().payload,
+    );
+  try {
+    const ordinary = {
+      ...structuredClone(demoTest),
+      id: "ordinary",
+      versionId: "ordinary-v1",
+      taskNumber: 1,
+      title: "ЕГЭ. Задание № 1",
+    };
+    importLocal(ordinary, path);
+    for (const grade of [10, 11]) {
+      const t = {
+        ...structuredClone(ordinary),
+        id: `mock-${grade}`,
+        versionId: `mock-${grade}-v1`,
+        title: `ЕГЭ. Пробник № 1. ${grade} класс`,
+        taskCount: 6,
+      };
+      assert.equal(testTopic(t), `Пробник № 1. ${grade} класс`);
+      importLocal(t, path);
+      const before = read();
+      importLocal(t, path);
+      assert.deepEqual(read(), before);
+      assert.throws(
+        () =>
+          importLocal(
+            { ...t, id: "collision", versionId: `collision-${grade}` },
+            path,
+          ),
+        /принадлежит/,
+      );
+      assert.throws(
+        () => validateTest({ ...t, taskCount: 26 }),
+        /Количество заданий/,
+      );
+      assert.deepEqual(read(), before);
+    }
+    assert.equal(read().tests.length, 4);
+    assert.deepEqual(
+      read().tests.find((t) => t.id === ordinary.id).exercises,
+      ordinary.exercises,
+    );
+  } finally {
+    db.close();
+    app.emit("close");
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 test("local import is atomic, repeatable and preserves attempts and version links", () => {
   const dir = mkdtempSync(tmpdir() + "/rns-import-");
